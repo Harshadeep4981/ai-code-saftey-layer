@@ -30,21 +30,22 @@ def calculate_health_score(issues, total_files):
     if len(issues) == 0:
         return 10.0
 
-    # Risk burden (WEIGHTED ISSUE LOAD PER FILE!)
+    # Risk burden (WEIGHTED ISSUE LOAD PER FILE!) Baseline risk
     risk_burden = total_risk / total_files
 
     burden_score = risk_burden / (risk_burden + 1)
 
-    # Concentration (ONE FILE HAS MORE ISSUES OR SPREADED?)
+    # Concentration (ONE FILE HAS MORE ISSUES OR SPREADED?) amplifies burden
     max_file_issues = max(file_issue_count.values())
 
     concentration = max_file_issues / len(issues)
 
-    # Security ratio
+    # Security ratio amplifies risk
     security_ratio = high_issues / len(issues)
 
     # Combined risk index
-    risk_index = burden_score + (0.3 * concentration) + (0.4 * security_ratio)
+    amplification_factor = 1 + concentration*security_ratio
+    risk_index = burden_score*amplification_factor
 
     if risk_index > 1:
         risk_index = 1

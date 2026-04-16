@@ -5,7 +5,7 @@ import requests                                      #this helps us to connect t
 import time                                          #this helps in giving a time delay so that the requests do not approach github instantly
 from analyzer.analyzer import analyze_file
 from Reporting.summarize import generate_summary
-token = "your_token_here"
+token = "your_token"
 user ={
     "Authorization" : f"token {token}"
 }
@@ -23,9 +23,7 @@ def get_contents(owner,repo,path=""):
         for item in data:
             if count >= MAX_FILES:
                 return
-            if item["type"]=="file" :
-                if item["path"] == "scanner/repo_scanner.py":
-                 continue
+            if item["type"]=="file" and item['path'] == "scanner/test.py" :
                 if item["name"].endswith((".py",".js",".java",".cpp")):
                     count += 1
                     file_url = item["download_url"]
