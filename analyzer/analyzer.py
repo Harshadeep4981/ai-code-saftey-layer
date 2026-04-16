@@ -24,5 +24,5 @@ def analyze_file(lines, file_path, issues):
 
     #NOW WE HAVE MOVED TO DETECTION OF SYNTAX ERRORS
     if file_path.endswith('.py'):
-        file_data = "\n".join(lines)
+        file_path = "\n".join(lines)
         check_python_syntax(lines,file_path,issues)
