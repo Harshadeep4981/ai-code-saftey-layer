@@ -1,5 +1,4 @@
 def check_security(lines, file_path, issues):
-    print("=== HARD CODED SECRET CHECK RUNNING ===")
     suspicious_keywords = [
         "password",
         "passwd",
@@ -12,13 +11,11 @@ def check_security(lines, file_path, issues):
     for i, line in enumerate(lines, start=1):
 
         clean_line = line.strip().lower()
-        print("SECRET CHECK LINE:", clean_line)
         keyword_found = False
 
         # Step 1: Check suspicious words
         for word in suspicious_keywords:
             if word in clean_line:
-                print("KEYWORD FOUND:", word)
                 keyword_found = True
                 break
 
@@ -39,7 +36,6 @@ def check_security(lines, file_path, issues):
 
             # Step 3: Add issue if suspicious
             if has_equal_sign and has_quotes:
-                print("ADDING SECRET ISSUE:", clean_line)
                 issues.append({
                     "file": file_path,
                     "line": i,
