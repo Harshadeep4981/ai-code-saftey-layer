@@ -13,6 +13,11 @@ for i in range(10):
     for j in range(10):
         print(i, j)
 print(x)
+
+x = 10
+
+y = 5
+print(y)
 very_long_variable_name = "This is a super long line that definitely goes above eighty characters and should trigger warning"
-for i in range(5)
+for i in range(5):
     print(i)
