@@ -1,10 +1,26 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Shield, Sparkles, Code, Activity, ShieldCheck, ArrowRight } from 'lucide-react';
 import '../assets/premium-theme.css';
 
 const Dashboard = () => {
   const navigate = useNavigate();
+  const [username, setUsername] = useState("Harshadeep");
+
+  // --- DYNAMIC NAME FIX ---
+  useEffect(() => {
+    const token = localStorage.getItem("access_token");
+    if (token) {
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        if (payload.username) {
+          setUsername(payload.username);
+        }
+      } catch (error) {
+        console.error("Could not parse session token");
+      }
+    }
+  }, []);
 
   const glassCardStyle = {
     background: 'rgba(15, 23, 42, 0.4)',
@@ -40,7 +56,6 @@ const Dashboard = () => {
         justifyContent: 'center',
         animation: 'coreEntry 0.8s ease-out'
       }}>
-        {/* The premium badge container */}
         <div style={{ 
           width: '48px', 
           height: '48px', 
@@ -54,7 +69,6 @@ const Dashboard = () => {
           <Shield size={24} color="#0f172a" strokeWidth={2.5} />
         </div>
         
-        {/* The premium typography */}
         <h1 style={{ 
           fontSize: '28px', 
           fontWeight: '800', 
@@ -70,9 +84,7 @@ const Dashboard = () => {
         </h1>
       </div>
 
-      {/* ========================================= */}
-      {/* ⭐ HERO WELCOME SECTION ⭐                */}
-      {/* ========================================= */}
+      {/* ⭐ HERO WELCOME SECTION ⭐ */}
       <div style={{
         display: 'flex',
         flexDirection: 'column',
@@ -101,7 +113,7 @@ const Dashboard = () => {
           letterSpacing: '1px',
           textShadow: '0 0 30px rgba(212,175,55,0.3)' 
         }}>
-          Harshadeep
+          {username}
         </h2>
         
         <p style={{ 
@@ -157,9 +169,7 @@ const Dashboard = () => {
         </button>
       </div>
 
-      {/* ========================================= */}
-      {/* ⭐ SYSTEM PIPELINE / CAPABILITIES ⭐      */}
-      {/* ========================================= */}
+      {/* ⭐ SYSTEM PIPELINE / CAPABILITIES ⭐ */}
       <div style={{ 
         width: '100%', 
         maxWidth: '1200px',

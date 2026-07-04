@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-
+import '../assets/admin.css';
 const AdminDashboard = () => {
   const [users, setUsers] = useState([]);
   const [error, setError] = useState(null);

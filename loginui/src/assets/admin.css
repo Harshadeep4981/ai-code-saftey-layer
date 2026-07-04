@@ -1,0 +1,81 @@
+.admin-container {
+  max-width: 900px;
+  margin: 60px auto;
+  padding: 30px;
+  background: rgba(10, 10, 15, 0.6);
+  border: 1px solid rgba(229, 169, 61, 0.2);
+  border-radius: 12px;
+  backdrop-filter: blur(10px);
+  color: #fff;
+  font-family: sans-serif;
+}
+
+.admin-title {
+  color: #e5a93d; /* Your signature gold */
+  text-align: center;
+  font-size: 2rem;
+  margin-bottom: 30px;
+  text-shadow: 0 0 10px rgba(229, 169, 61, 0.4);
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.admin-table th {
+  background: rgba(0, 0, 0, 0.4);
+  color: #e5a93d;
+  padding: 16px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  font-size: 0.85rem;
+  border-bottom: 2px solid rgba(229, 169, 61, 0.3);
+}
+
+.admin-table td {
+  padding: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  color: #ccc;
+}
+
+.admin-table tr:hover {
+  background: rgba(229, 169, 61, 0.05);
+}
+
+.status-active {
+  background: rgba(76, 175, 80, 0.15);
+  color: #4CAF50;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: bold;
+}
+
+.status-inactive {
+  background: rgba(244, 67, 54, 0.15);
+  color: #f44336;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: bold;
+}
+
+.btn-home {
+  display: block;
+  margin: 30px auto 0;
+  background: transparent;
+  border: 1px solid #e5a93d;
+  color: #e5a93d;
+  padding: 10px 20px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-home:hover {
+  background: #e5a93d;
+  color: #000;
+}
