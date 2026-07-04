@@ -19,7 +19,7 @@ client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://ai-code-saftey-layer.vercel.app"], 
+    allow_origins="https://ai-code-saftey-layer(-.*)?\.vercel\.app", 
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
