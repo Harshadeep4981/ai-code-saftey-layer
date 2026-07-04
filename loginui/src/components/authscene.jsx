@@ -230,19 +230,29 @@ export default function AuthScene({ onSubmit, onGoogleSignIn }) {
           switchMode("success_screen");
           setTimeout(() => triggerSuccess({ action: 'signup', ...formData }), 1500);
           break;
-
         // FORGOT PASSWORD FLOW
         case "forgot_step1":
+          // NEW: Actually tell the backend to send the email!
+          await authService.forgotPassword({ email: formData.email });
           switchMode("forgot_step2_otp");
           break;
+          
         case "forgot_step2_otp":
+          // NEW: Send the OTP to the backend to verify it
+          const resetOtpString = otp.join("");
+          await authService.verifyResetOtp({ email: formData.email, otp: resetOtpString });
           switchMode("forgot_step3_pwd");
           break;
+          
         case "forgot_step3_pwd":
+          // NEW: Send the new password to the backend to save it
+          await authService.resetPassword({ 
+            email: formData.email, 
+            new_password: formData.password,
+            confirm_password: formData.confirmPassword
+          });
           switchMode("reset_success_screen");
           setTimeout(() => triggerSuccess({ action: 'reset_password', ...formData }), 1500);
-          break;
-        default:
           break;
       }
     } catch (err) {

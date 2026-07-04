@@ -32,5 +32,28 @@ export const authService = {
     });
     if (!res.ok) throw new Error((await res.json()).detail);
     return res.json();
+  },
+  forgotPassword: async (data) => {
+    const res = await fetch(`${API_URL}/forgot-password`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data)
+    });
+    if (!res.ok) throw new Error((await res.json()).detail || "Failed to send reset link");
+    return res.json();
+  },
+
+  verifyResetOtp: async (data) => {
+    const res = await fetch(`${API_URL}/verify-reset-otp`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data)
+    });
+    if (!res.ok) throw new Error((await res.json()).detail || "Invalid OTP");
+    return res.json();
+  },
+
+  resetPassword: async (data) => {
+    const res = await fetch(`${API_URL}/reset-password`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data)
+    });
+    if (!res.ok) throw new Error((await res.json()).detail || "Failed to reset password");
+    return res.json();
   }
 };
