@@ -13,5 +13,5 @@ def check_imports(lines, file_path, issues):
             "line": None,
             "issue": "Too many imports",
             "details": f"{import_count} imports",
-            "severity": "medium"
-        })
+            "severity": "low"        
+            })

@@ -1,3 +1,18 @@
+# --- Python Backend ---
 __pycache__/
 *.pyc
+venv/
+.venv/
 .env
+
+# --- React/Frontend ---
+node_modules/
+dist/
+build/
+.output/
+
+# --- System & IDE ---
+.DS_Store
+.vscode/
+.idea/
+*.log

@@ -1,5 +1,6 @@
 from collections import Counter
 from scoring.health_score import calculate_health_score
+from ai.explain_issues import explain_issue
 
 
 def generate_summary(issues, total_files):
@@ -7,14 +8,15 @@ def generate_summary(issues, total_files):
     severity_count = Counter()
 
     file_issue_count = Counter()
-
+    #FOR COUNTING ISSUES
     for issue in issues:
 
         severity_count[issue["severity"]] += 1
 
         file_issue_count[issue["file"]] += 1
-
-    score = calculate_health_score(issues, total_files)
+    
+            
+    score = calculate_health_score(issues)
 
     if score >= 9:
         status = "Excellent"

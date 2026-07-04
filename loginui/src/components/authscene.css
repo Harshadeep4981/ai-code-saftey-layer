@@ -1,0 +1,365 @@
+/* ============================================================
+   AI SAFETY LAYER — The "Reveal" Architecture + Workflow
+   ============================================================ */
+
+.scene {
+  position: relative;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #000000;
+  color: #f5f1ea;
+  font-family: var(--font-body);
+  overflow: hidden;
+  transition: transform 2s ease-in-out, filter 2s ease;
+}
+
+.scene::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+  opacity: 0.03;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.scene::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  box-shadow: inset 0 0 250px rgba(0, 0, 0, 0.98);
+  pointer-events: none;
+  z-index: 9;
+}
+
+.scene.phase-success {
+  transform: scale(1.03);
+  filter: brightness(1.2);
+}
+
+/* ---------- Audio Controls ---------- */
+.mute-toggle {
+  position: absolute;
+  top: 48px;
+  right: clamp(32px, 6vw, 80px);
+  z-index: 15;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+  color: #888;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.2s ease, color 0.2s ease;
+}
+
+.mute-toggle:hover {
+  border-color: rgba(229, 169, 61, 0.4);
+  color: #e5a93d;
+}
+
+/* ---------- Layer 4: Room Illumination ---------- */
+.room-glow {
+  position: absolute;
+  inset: -20% -20% -20% -20%;
+  background: radial-gradient(circle at 35% 45%, rgba(245, 175, 65, 0.15) 0%, rgba(180, 100, 20, 0.08) 30%, transparent 65%);
+  opacity: 0;
+  transition: opacity 3s ease;
+  pointer-events: none;
+  z-index: 0;
+}
+.phase-on .room-glow, .phase-success .room-glow { opacity: 1; }
+
+/* ---------- Brand ---------- */
+.brand {
+  position: absolute;
+  top: 48px;
+  left: clamp(32px, 6vw, 80px);
+  z-index: 15;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-family: var(--font-display);
+  font-size: clamp(1.8rem, 3.5vw, 2.6rem);
+  letter-spacing: -0.03em;
+  color: #ffffff;
+  opacity: 0.15;
+  transition: opacity 2.5s ease, filter 2.5s ease;
+}
+.phase-on .brand { opacity: 1; filter: drop-shadow(0 0 25px rgba(229, 169, 61, 0.4)); }
+.brand span { font-weight: 700; }
+.brand em { 
+  font-style: normal; font-weight: 300; 
+  background: linear-gradient(135deg, #a3751c 0%, #7a5510 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  transition: background 2.5s ease;
+}
+.phase-on .brand em {
+  background: linear-gradient(135deg, #ffe5a3 0%, #e5a93d 40%, #a3751c 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+
+/* ---------- Stage Layout ---------- */
+.stage {
+  position: relative;
+  z-index: 2;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 1300px;
+  margin: 0 auto;
+  width: 100%;
+  padding: 0 clamp(32px, 6vw, 80px);
+}
+.lamp-wrapper { flex: 0 0 300px; display: flex; justify-content: center; margin-top: 40px; }
+.card-wrapper { flex: 0 0 420px; display: flex; justify-content: center; }
+
+/* ---------- The Lamp Redesign ---------- */
+.lamp { display: flex; flex-direction: column; align-items: center; position: relative; }
+.lamp-head { display: flex; flex-direction: column; align-items: center; transform-origin: bottom center; position: relative; z-index: 3; }
+.phase-swinging .lamp-head { animation: physicsSwing 2.2s cubic-bezier(0.36, 0, 0.19, 1) both; }
+@keyframes physicsSwing {
+  0%   { transform: rotate(0deg); }
+  15%  { transform: rotate(14deg); } 
+  35%  { transform: rotate(-8deg); } 
+  55%  { transform: rotate(4deg); }  
+  75%  { transform: rotate(-1.5deg); }
+  90%  { transform: rotate(0.5deg); }
+  100% { transform: rotate(0deg); }
+}
+
+.shade-exterior {
+  width: 180px; height: 90px; border-radius: 90px 90px 0 0;
+  background: linear-gradient(180deg, #181818 0%, #0d0d0d 100%);
+  position: relative; z-index: 3;
+  box-shadow: inset 0 2px 4px rgba(255,255,255,0.05), 0 8px 20px rgba(0,0,0,0.8);
+}
+.shade-interior {
+  width: 176px; height: 24px; border-radius: 50%; margin-top: -12px;
+  background: #050505; position: relative; z-index: 2; transition: background 0.1s;
+}
+.shade-interior::before {
+  content: ""; position: absolute; inset: 0; border-radius: 50%;
+  background: radial-gradient(circle at center, rgba(229, 169, 61, 0.4) 0%, transparent 60%);
+  opacity: 0; transition: opacity 0.5s ease;
+}
+.phase-on .shade-interior::before { opacity: 1; }
+.bulb {
+  position: absolute; left: 50%; top: -2px; transform: translateX(-50%);
+  width: 26px; height: 26px; border-radius: 50%; background: #fff;
+  opacity: 0; box-shadow: 0 0 20px #fff, 0 0 60px #f5a623; z-index: 1; 
+}
+.phase-flickering .bulb, .phase-flickering .shade-interior { animation: tungstenWake 1.8s forwards; }
+.phase-on .bulb { opacity: 1; }
+.phase-on .shade-interior { background: #d48a1c; box-shadow: inset 0 -4px 12px #ffe5a3; }
+@keyframes tungstenWake {
+  0%   { opacity: 0; }
+  15%  { opacity: 0.1; background: #2a1b05; box-shadow: none; } 
+  20%  { opacity: 0.9; background: #e5a93d; box-shadow: inset 0 -4px 20px #ffe5a3; } 
+  25%  { opacity: 0;   background: #000000; box-shadow: none; } 
+  40%  { opacity: 0;   background: #000000; box-shadow: none; } 
+  45%  { opacity: 0.4; background: #5c3b09; box-shadow: inset 0 -2px 10px #8a5a19; } 
+  60%  { opacity: 0.3; background: #3a2505; box-shadow: none; } 
+  100% { opacity: 1.0; background: #d48a1c; box-shadow: inset 0 -4px 12px #ffe5a3; } 
+}
+
+.chain-socket {
+  position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
+  width: 12px; height: 6px; border-radius: 2px; z-index: 4;
+  background: linear-gradient(90deg, #3a2909, #8a661c, #3a2909);
+}
+.chain-anchor {
+  position: absolute; top: 21px; left: 50%; z-index: 5; touch-action: none; 
+}
+.chain-sway {
+  display: flex; flex-direction: column; align-items: center; transform-origin: top center;
+  padding: 0 20px 20px 20px; cursor: grab;
+}
+.chain-sway:active { cursor: grabbing; }
+.phase-idle .chain-sway { animation: airSway 4.5s ease-in-out infinite; }
+@keyframes airSway {
+  0%, 100% { transform: rotate(0deg); }
+  33%      { transform: rotate(2.5deg); }
+  66%      { transform: rotate(-1.5deg); }
+}
+.beads { display: flex; flex-direction: column; align-items: center; gap: 1.5px; }
+.bead {
+  width: 4px; height: 4px; border-radius: 50%; box-shadow: 0 1px 2px rgba(0,0,0,0.8);
+  background: linear-gradient(135deg, #a88132 0%, #5c420e 100%);
+}
+.handle {
+  width: 14px; height: 26px; border-radius: 50% 50% 40% 40%; margin-top: 2px;
+  background: linear-gradient(135deg, #8a661c 0%, #b88d29 40%, #523c0f 100%);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.5); transition: filter 0.3s ease, box-shadow 0.3s ease;
+}
+.chain-sway:hover .handle { filter: brightness(1.25); box-shadow: 0 0 12px rgba(229, 169, 61, 0.4); }
+
+.pole-assembly { display: flex; flex-direction: column; align-items: center; position: relative; z-index: 1; }
+.neck {
+  width: 16px; height: 24px; clip-path: polygon(0 0, 100% 0, 70% 100%, 30% 100%);
+  background: linear-gradient(90deg, #050505 0%, #222 40%, #555 50%, #222 60%, #050505 100%);
+}
+.rod {
+  width: 8px; height: 240px; box-shadow: 0 0 10px rgba(0,0,0,0.8);
+  background: linear-gradient(90deg, #050505 0%, #1a1a1a 35%, #4a4a4a 50%, #1a1a1a 65%, #050505 100%);
+}
+.base {
+  width: 140px; height: 16px; border-radius: 50%; margin-top: -4px; position: relative;
+  background: radial-gradient(ellipse at 50% 20%, #333 0%, #111 60%, #000 100%);
+  box-shadow: inset 0 2px 4px rgba(255,255,255,0.08), 0 12px 30px rgba(0,0,0,0.9);
+}
+.base::after {
+  content: ""; position: absolute; bottom: -15px; left: 50%; transform: translateX(-50%);
+  width: 160px; height: 25px; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(ellipse at center, rgba(229, 169, 61, 0.25) 0%, transparent 70%);
+  opacity: 0; transition: opacity 2.5s ease;
+}
+.phase-on .base::after { opacity: 1; }
+
+.dust-layer {
+  position: absolute; inset: 0; pointer-events: none; z-index: 5;
+  transition: transform 1.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.phase-swinging .dust-layer { transform: translateX(-15px) rotate(-1deg); }
+.phase-on .dust-layer { transform: translateX(0) rotate(0); }
+.mote { position: absolute; border-radius: 50%; background: rgba(255, 220, 150, 0.6); opacity: 0; filter: blur(1px); }
+.phase-on .mote { animation: floatDust var(--duration) linear infinite var(--delay); }
+@keyframes floatDust {
+  0% { opacity: 0; transform: translateY(0) scale(0.8); }
+  20% { opacity: 1; }
+  80% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-60px) scale(1.2); }
+}
+
+/* ---------- The Glass Control Panel ---------- */
+.glass-panel {
+  width: 100%;
+  padding: 40px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.015);
+  backdrop-filter: blur(0px);
+  -webkit-backdrop-filter: blur(0px);
+  border: 1px solid rgba(229, 169, 61, 0); 
+  box-shadow: none;
+  opacity: 0;
+  transition: opacity 1s ease, backdrop-filter 2s ease 150ms, border-color 2.5s ease, box-shadow 2.5s ease;
+  position: relative; /* For inner absolute transitions */
+}
+
+.phase-on .glass-panel {
+  opacity: 1;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-color: rgba(229, 169, 61, 0.15); 
+  border-left-color: rgba(229, 169, 61, 0.45); 
+  box-shadow: -15px 30px 60px rgba(0,0,0,0.95), -10px 0 45px rgba(229, 169, 61, 0.12), inset 1px 1px 15px rgba(229, 169, 61, 0.1);
+}
+.phase-success .glass-panel { opacity: 0; transition: opacity 1s ease; }
+
+/* ---------- Apple-Style Form Transition Wrapper ---------- */
+.form-transition-wrapper {
+  transition: opacity 0.25s ease-in-out, transform 0.25s ease-in-out;
+  opacity: 1;
+  transform: translateY(0);
+}
+.form-transition-wrapper.is-transitioning {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+/* Sequential Elements (Only run on initial load) */
+.reveal-item { opacity: 0; transition: opacity 1.5s ease var(--reveal-delay, 0ms); }
+.phase-on .reveal-item { opacity: 1; }
+/* When navigating forms quickly, we don't want the 2-second stagger */
+.no-delay .reveal-item { opacity: 1; transition: none; }
+
+.panel-head { margin-bottom: 32px; }
+.panel-head h1 { font-family: var(--font-display); font-size: 2rem; font-weight: 500; margin: 0 0 8px; color: #fff; letter-spacing: -0.02em; }
+.panel-head p { margin: 0; font-size: 0.9rem; color: #888; }
+
+.input-group { position: relative; margin-bottom: 24px; }
+.input-group input { 
+  width: 100%; background: transparent; border: none; border-bottom: 1px solid rgba(255, 255, 255, 0.1); 
+  padding: 12px 0; color: #fff; font-size: 1rem; font-family: inherit; outline: none; 
+  transition: border-color 0.3s ease, box-shadow 0.3s ease; caret-color: #e5a93d; 
+}
+.input-group input::placeholder { color: #555; }
+.input-group input:focus { border-bottom-color: #e5a93d; box-shadow: 0 10px 15px -10px rgba(229, 169, 61, 0.3); }
+
+.input-action { 
+  position: absolute; right: 0; top: 50%; transform: translateY(-50%) scale(1); 
+  background: none; border: none; color: #666; cursor: pointer; padding: 4px; 
+  transition: color 0.2s ease, transform 0.2s ease;
+}
+.input-action:hover { color: #e5a93d; transform: translateY(-50%) scale(1.05); }
+
+/* ---------- OTP 6-Box Styling ---------- */
+.otp-group {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 32px;
+}
+.otp-input {
+  width: 48px;
+  height: 56px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  color: #fff;
+  font-size: 1.5rem;
+  text-align: center;
+  font-family: var(--font-display);
+  transition: all 0.3s ease;
+  caret-color: #e5a93d;
+  outline: none;
+}
+.otp-input:focus {
+  border-color: #e5a93d;
+  background: rgba(229, 169, 61, 0.04);
+  box-shadow: 0 0 15px rgba(229, 169, 61, 0.2), inset 0 0 10px rgba(229, 169, 61, 0.1);
+  transform: translateY(-2px);
+}
+
+.forgot-link { display: block; text-align: right; font-size: 0.8rem; color: #888; text-decoration: none; margin: -8px 0 32px; transition: color 0.2s ease; }
+.forgot-link:hover { color: #e5a93d; }
+
+/* Elegant, small gold link for switching views */
+.auth-switch {
+  text-align: center;
+  margin-top: 24px;
+  font-size: 0.85rem;
+  color: #777;
+}
+.auth-switch button {
+  background: none; border: none; padding: 0; margin-left: 6px;
+  color: #e5a93d; font-family: inherit; font-size: inherit; font-weight: 500;
+  cursor: pointer; transition: color 0.2s ease, text-shadow 0.2s ease;
+}
+.auth-switch button:hover {
+  color: #ffe5a3; text-shadow: 0 0 8px rgba(229, 169, 61, 0.4);
+}
+
+.btn-primary { 
+  width: 100%; padding: 14px; border-radius: 12px; border: none; 
+  background: linear-gradient(180deg, #f0b954 0%, #d6941c 100%); 
+  color: #111; font-weight: 600; font-size: 0.95rem; cursor: pointer; 
+  transition: filter 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease; 
+}
+.btn-primary:hover { box-shadow: 0 0 25px rgba(229, 169, 61, 0.4); }
+.btn-primary:active { box-shadow: none; transform: scale(0.98); }
+.phase-success .btn-primary { box-shadow: 0 0 30px rgba(229, 169, 61, 0.8); filter: brightness(1.3); }
+
+.btn-secondary { width: 100%; padding: 14px; margin-top: 16px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.08); background: transparent; color: #ccc; font-size: 0.95rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; transition: background 0.2s ease, color 0.2s ease; }
+.btn-secondary:hover { background: rgba(255,255,255,0.03); color: #fff; }
+
+@media (max-width: 900px) {
+  .stage { flex-direction: column; justify-content: center; gap: 60px; }
+  .brand { top: 24px; left: 24px; }
+  .lamp-wrapper { margin-top: 80px; flex: 0 0 auto; }
+}

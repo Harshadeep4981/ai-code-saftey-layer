@@ -1,80 +1,97 @@
 import ast
 import builtins
-import re
 
-#  Precompute builtins
-BUILTINS = set(dir(builtins))
+BUILTINS = set(dir(builtins)) | {"__file__", "__name__", "__doc__", "__package__"}
 
-#  Regex patterns for risky usage
-RISKY_PATTERNS = [
-    (re.compile(r"\beval\s*\("), "Use of eval() can be dangerous"),
-    (re.compile(r"\bexec\s*\("), "Use of exec() can be dangerous"),
-]
+class DefinitionCollector(ast.NodeVisitor):
 
-
-class UndefinedVariableVisitor(ast.NodeVisitor):
-    def __init__(self, file_path, issues):
+    def __init__(self):
         self.defined_variables = set()
-        self.used_variables = set()
-        self.file_path = file_path
-        self.issues = issues
 
-    #  Handles assignment
+    def visit_Import(self, node):
+        for alias in node.names:
+            self.defined_variables.add(alias.asname or alias.name)
+
+    def visit_ImportFrom(self, node):
+        for alias in node.names:
+            self.defined_variables.add(alias.asname or alias.name)
+
     def visit_Assign(self, node):
-        self.generic_visit(node)
         for target in node.targets:
             if isinstance(target, ast.Name):
                 self.defined_variables.add(target.id)
+        self.generic_visit(node)
 
-    #  Handles for loops
     def visit_For(self, node):
         if isinstance(node.target, ast.Name):
             self.defined_variables.add(node.target.id)
         self.generic_visit(node)
 
-    #  Handles function definitions
     def visit_FunctionDef(self, node):
+        self.defined_variables.add(node.name)
         for arg in node.args.args:
             self.defined_variables.add(arg.arg)
         self.generic_visit(node)
 
-    #  Handles variable usage
+    def visit_ClassDef(self, node):
+        self.defined_variables.add(node.name)
+        self.generic_visit(node)
+
+    # ADDED: This makes the scanner understand 'with open(...) as f:'
+    def visit_With(self, node):
+        for item in node.items:
+            if isinstance(item.optional_vars, ast.Name):
+                self.defined_variables.add(item.optional_vars.id)
+        self.generic_visit(node)
+
+    # ADDED: This makes the scanner understand 'except Exception as e:'
+    def visit_ExceptHandler(self, node):
+        if node.name:
+            self.defined_variables.add(node.name)
+        self.generic_visit(node)
+
+class UndefinedVariableVisitor(ast.NodeVisitor):
+
+    def __init__(self, file_path, issues, defined_variables):
+        self.file_path = file_path
+        self.issues = issues
+        self.defined_variables = defined_variables
+        self.used_variables = set()
+
     def visit_Name(self, node):
         if isinstance(node.ctx, ast.Load):
-
             if node.id in BUILTINS:
+                self.used_variables.add(node.id)
                 return
-
             if node.id not in self.defined_variables:
                 self.issues.append({
                     "file": self.file_path,
                     "line": node.lineno,
-                    "issue": "Possible undefined variable",
+                    "issue": "Undefined variable",
                     "details": f"'{node.id}' used before assignment",
                     "severity": "high"
                 })
-
             self.used_variables.add(node.id)
-
         self.generic_visit(node)
 
 
 def check_python_syntax(file_data, file_path, issues):
     try:
-        #  AST parsing
         tree = ast.parse(file_data)
+        collector = DefinitionCollector()
+        collector.visit(tree)
 
-        #  AST visitor
-        visitor = UndefinedVariableVisitor(file_path, issues)
+        visitor = UndefinedVariableVisitor(
+            file_path,
+            issues,
+            collector.defined_variables
+        )
         visitor.visit(tree)
 
-        #  Unused variables
-        unused_vars = visitor.defined_variables - visitor.used_variables
-
+        unused_vars = collector.defined_variables - visitor.used_variables
         for var in unused_vars:
             if var.lower() in ["password", "token", "api_key"]:
                 continue
-
             issues.append({
                 "file": file_path,
                 "line": None,
@@ -82,20 +99,6 @@ def check_python_syntax(file_data, file_path, issues):
                 "details": f"'{var}' is defined but never used",
                 "severity": "low"
             })
-
-        # Regex-based risky pattern detection
-        lines = file_data.splitlines()
-
-        for line_number, line in enumerate(lines, start=1):
-            for pattern, message in RISKY_PATTERNS:
-                if pattern.search(line):
-                    issues.append({
-                        "file": file_path,
-                        "line": line_number,
-                        "issue": "Risky code usage",
-                        "details": message,
-                        "severity": "high"
-                    })
 
     except SyntaxError as error:
         issues.append({

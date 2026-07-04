@@ -1,0 +1,6 @@
+# OTP Configuration
+OTP_LENGTH = 6
+OTP_EXPIRY_MINUTES = 5
+MAX_OTP_ATTEMPTS = 5
+MIN_PASSWORD_LENGTH = 8
+EMAIL_SUBJECT = "AI Safety Layer - Email Verification"

@@ -8,5 +8,5 @@ def check_nested_loop(lines,file_path,issues):
                 "line": i + 1,
                 "issue": "Nested loop detected",
                 "details": "Potential performance issue",
-                "severity": "medium"
+                "severity": "low"
                                     })
