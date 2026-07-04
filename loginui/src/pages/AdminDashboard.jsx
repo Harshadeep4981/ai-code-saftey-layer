@@ -10,7 +10,7 @@ const AdminDashboard = () => {
   useEffect(() => {
     const fetchUsers = async () => {
       // Grab the token you saved during login
-      const token = localStorage.getItem('token'); 
+      const token = localStorage.getItem('access_token'); 
       
       if (!token) {
         setError("You must be logged in.");
