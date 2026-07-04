@@ -1,5 +1,5 @@
 // loginui/src/services/authService.js
-const API_URL = "http://localhost:8000/auth"; 
+const API_URL = "https://ai-code-saftey-layer.onrender.com/auth"; 
 
 export const authService = {
   login: async (credentials) => {

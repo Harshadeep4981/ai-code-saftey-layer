@@ -1,5 +1,5 @@
 // src/services/api.js
-const API_URL = "http://localhost:8000"; // Matches your FastAPI server
+const API_URL = "https://ai-code-saftey-layer.onrender.com"; // Matches your FastAPI server
 
 export const apiService = {
   // 1. Send raw code, get vulnerabilities back
