@@ -3,7 +3,7 @@ from pydantic import BaseModel, EmailStr # Added for the new flow
 from database.schemas import UserLogin, OTPVerify
 from authentication.password import verify_password, hash_password, is_strong_password
 from authentication.JWT_handler import create_access_token
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from database.database import get_db
 from database.models import User, EmailOTP
@@ -168,6 +168,7 @@ def login(
         "token_type": "bearer"
 
     }
+
 @router.get("/me")
 def get_me(
 
@@ -184,3 +185,30 @@ def get_me(
         "email": current_user.email
 
     }
+
+# --- SECURE ADMIN ROUTE ---
+@router.get("/admin/users")
+def get_all_users(
+    db: Session = Depends(get_db), 
+    current_user: User = Depends(get_current_user)
+):
+    # SECURITY CHECK: Restrict access strictly to the admin account
+    if current_user.email != "harshadeepm63@gmail.com":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin privileges required."
+        )
+    
+    all_users = db.query(User).all()
+    
+    # Safely format data (stripping out password hashes)
+    return [
+        {
+            "id": user.id,
+            "username": user.username,
+            "email": user.email,
+            "is_active": getattr(user, "is_active", True),
+            "created_at": getattr(user, "created_at", None)
+        } 
+        for user in all_users
+    ]

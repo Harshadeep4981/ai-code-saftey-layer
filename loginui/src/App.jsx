@@ -6,6 +6,7 @@ import Dashboard from './pages/Dashboard';
 import Analyze from './pages/Analyze';
 import Results from './pages/Results';
 import SecureCode from './pages/securecode';
+import AdminDashboard from './pages/AdminDashboard'; 
 
 const App = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -38,18 +39,11 @@ const App = () => {
     <BrowserRouter>
       <MainLayout onLogout={handleLogout}>
         <Routes>
-          {/* The Home Page */}
           <Route path="/" element={<Dashboard />} />
-          
-          {/* The Code Editor Page */}
           <Route path="/analyze" element={<Analyze />} />
-          
-          {/* The Score & AI Explanation Page */}
           <Route path="/results" element={<Results />} />
-          
+          <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/secure-code" element={<SecureCode />} />
-          
-          {/* Fallback: If they type a weird URL, send them back to the dashboard */}
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </MainLayout>
