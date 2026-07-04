@@ -20,7 +20,7 @@ const AdminDashboard = () => {
 
       try {
         // Change this URL to match your actual Render backend URL
-        const response = await fetch('https://YOUR-RENDER-BACKEND.onrender.com/auth/admin/users', {
+        const response = await fetch('https://ai-code-saftey-layer.onrender.com/auth/admin/users', {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${token}`,
