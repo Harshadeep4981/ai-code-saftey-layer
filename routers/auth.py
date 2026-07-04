@@ -141,10 +141,16 @@ def finalize_signup(request: FinalizeSignup, db: Session = Depends(get_db)):
 # STEP 1: REQUEST RESET OTP
 @router.post("/forgot-password")
 def forgot_password(request: ForgotPasswordRequest, db: Session = Depends(get_db)):
+    print(f"DEBUG: Forgot password requested for email: '{request.email}'")
+    
     user = db.query(User).filter(User.email == request.email).first()
-    # Security best practice: Don't reveal if the email exists to prevent enumeration
+    
+    # TEMPORARY DEBUGGING: Throw an actual error instead of the decoy
     if not user:
-        return {"message": "If that email is registered, a reset code has been sent."}
+        print("DEBUG: FAILED! User NOT FOUND in the database.")
+        raise HTTPException(status_code=404, detail="DEBUG ERROR: This email is not in the users table. Check your spelling.")
+
+    print(f"DEBUG: SUCCESS! User found: {user.username}. Generating OTP...")
 
     old_request = db.query(EmailOTP).filter(EmailOTP.email == request.email).first()
     if old_request:
@@ -165,12 +171,17 @@ def forgot_password(request: ForgotPasswordRequest, db: Session = Depends(get_db
     try:
         db.add(reset_request)
         db.commit()
+        print("DEBUG: OTP saved to database. Handing off to Brevo...")
+        
         send_otp_email(user.email, otp)
-    except Exception:
+        print("DEBUG: Brevo accepted the email and sent it!")
+        
+    except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail="Unable to send reset email.")
+        print(f"DEBUG: CRASH during Brevo handoff! Error details: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Email failed to send: {str(e)}")
 
-    return {"message": "If that email is registered, a reset code has been sent."}
+    return {"message": "Reset code sent successfully!"}
 
 # STEP 2: VERIFY RESET OTP
 @router.post("/verify-reset-otp")
@@ -268,7 +279,6 @@ def get_all_users(db: Session = Depends(get_db), current_user: User = Depends(ge
     
     all_users = db.query(User).all()
     
-    # Safely format data (stripping out password hashes)
     return [
         {
             "id": user.id,
