@@ -1,65 +1,66 @@
-// src/services/api.js
-const API_URL = "https://ai-code-saftey-layer.onrender.com"; // Matches your FastAPI server
+const API_URL = "https://ai-code-saftey-layer.onrender.com";
+
+// Helper: Wraps all fetch calls to inject tokens and catch 401s
+const authenticatedFetch = async (endpoint, options = {}) => {
+  const token = localStorage.getItem('access_token');
+  
+  const headers = {
+    "Content-Type": "application/json",
+    ...options.headers,
+    ...(token ? { "Authorization": `Bearer ${token}` } : {})
+  };
+
+  const response = await fetch(`${API_URL}${endpoint}`, {
+    ...options,
+    headers
+  });
+
+  // THE AUTH GUARD: If backend says 401, token is invalid/expired
+  if (response.status === 401) {
+    console.warn("Session expired. Clearing token...");
+    localStorage.removeItem('access_token');
+    window.location.href = '/'; // Force back to login
+    throw new Error("Session expired. Please login again.");
+  }
+
+  if (!response.ok) {
+    throw new Error(`API Error: ${response.statusText}`);
+  }
+
+  return response.json();
+};
 
 export const apiService = {
-  // 1. Send raw code, get vulnerabilities back
   analyzeCode: async (code) => {
-    const response = await fetch(`${API_URL}/analyze`, {
+    return await authenticatedFetch("/analyze", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ code }),
     });
-    
-    if (!response.ok) {
-      throw new Error("Failed to analyze code. Make sure the backend is running.");
-    }
-    return response.json();
   },
 
-  // 2. Ask AI to patch the vulnerabilities
   generateSecureCode: async (code, issues) => {
-    const response = await fetch(`${API_URL}/generate_secure_code`, {
+    return await authenticatedFetch("/generate_secure_code", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ code, issues }),
     });
-
-    if (!response.ok) {
-      throw new Error("Failed to generate secure code.");
-    }
-    return response.json();
   },
 
-  // 3. Ask AI to explain a specific issue
   explainIssue: async (issue, details) => {
-    const response = await fetch(`${API_URL}/explain_issue`, {
+    return await authenticatedFetch("/explain_issue", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ issue, details }),
     });
-
-    if (!response.ok) {
-      throw new Error("Failed to fetch explanation.");
-    }
-    return response.json();
   },
-  
-  // 4. NEW: Send chat message to AI Architect
+
   sendChatMessage: async (message, history, codeContext, issues) => {
-    const response = await fetch(`${API_URL}/chat`, {
+    return await authenticatedFetch("/chat", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        message: message,
-        history: history,
+        message,
+        history,
         code: codeContext,
-        issues: issues
+        issues
       }),
     });
-
-    if (!response.ok) {
-      throw new Error("Failed to send chat message.");
-    }
-    return response.json();
   }
 };
