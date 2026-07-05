@@ -22,8 +22,20 @@ const Results = () => {
   // Backwards compatibility just in case we hit it with old state
   const fileArray = files || [{ name: 'codebase.py', content: originalCode || '' }];
   const issues = data.issues || [];
-  const score = data.summary?.score || 10;
-  
+  let tempScore = data.summary?.score || 10;
+
+  // If backend didn't provide a real score, but we found issues, calculate it here:
+  if (tempScore >= 9 && issues.length > 0) {
+    const highRisk = issues.filter(i => (i.severity || '').toLowerCase() === 'high' || (i.severity || '').toLowerCase() === 'critical').length;
+    const medRisk = issues.filter(i => (i.severity || '').toLowerCase() === 'medium').length;
+    const lowRisk = issues.filter(i => (i.severity || '').toLowerCase() === 'low').length;
+    
+    // Deduct points based on severity weight
+    tempScore = 10 - (highRisk * 0.8) - (medRisk * 0.4) - (lowRisk * 0.1);
+    tempScore = Math.max(1.5, tempScore); // Floor it so it never drops below 1.5
+  }
+
+  const score = Number(tempScore).toFixed(1);
   const totalIssues = issues.length;
   const highRisk = issues.filter(i => (i.severity || '').toLowerCase() === 'high').length;
   const medRisk = issues.filter(i => (i.severity || '').toLowerCase() === 'medium').length;

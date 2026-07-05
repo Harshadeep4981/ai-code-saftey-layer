@@ -81,7 +81,7 @@ const Analyze = () => {
       if (!response.ok) throw new Error("Analysis failed");
       
       const results = await response.json();
-      navigate('/results', { state: { data: results, analyzedFiles: payloadFiles.length } });
+      navigate('/results', { state: { data: results, files: payloadFiles } });
       
     } catch (error) {
       console.error("Error during analysis:", error);
