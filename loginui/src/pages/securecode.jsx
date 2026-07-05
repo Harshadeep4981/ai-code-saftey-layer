@@ -168,7 +168,8 @@ const SecureCode = () => {
     <div style={{ width: '100%', maxWidth: '1200px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '20px', padding: '0 20px 60px 20px', zIndex: 10, overflowX: 'hidden' }}>
       
       {/* HEADER */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '15px', flexWrap: 'wrap' }}>
+      {/* FIX: Added flexShrink: 0 to prevent squishing */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '15px', flexWrap: 'wrap', flexShrink: 0 }}>
         <button onClick={() => navigate(-1)} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#94a3b8', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 15px', borderRadius: '8px', transition: 'all 0.3s', fontSize: '13px' }}>
           <ArrowLeft size={16} /> Back
         </button>
@@ -178,7 +179,8 @@ const SecureCode = () => {
       </div>
 
       {/* FILE SELECTOR BAR (Using localFiles now) */}
-      <div style={{ display: 'flex', gap: '10px', overflowX: 'auto', paddingBottom: '10px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+      {/* FIX: Added flexShrink: 0 and minHeight: '60px' to force it to stay visible */}
+      <div style={{ display: 'flex', gap: '10px', overflowX: 'auto', paddingBottom: '10px', borderBottom: '1px solid rgba(255,255,255,0.05)', flexShrink: 0, minHeight: '60px', alignItems: 'center' }}>
         {localFiles.map((file, idx) => {
           const hasIssues = (issues || []).some(i => i.file === file.name);
           const isActive = activeFileIdx === idx;

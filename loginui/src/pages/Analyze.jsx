@@ -7,17 +7,16 @@ const Analyze = () => {
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
   
-  // NEW: State to control the UI mode
   const [mode, setMode] = useState('select'); // 'select' | 'upload' | 'paste'
-  
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [pastedCode, setPastedCode] = useState('');
   
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [dragActive, setDragActive] = useState(false);
 
-  const IGNORED_FOLDERS = ['.git', 'node_modules', 'dist', 'build', '.next', 'venv'];
-  const ALLOWED_EXTENSIONS = ['.js', '.jsx', '.ts', '.tsx', '.py', '.java', '.cpp', '.c', '.go', '.rs'];
+  // LOGIC FIX: Now it strictly only accepts Python files!
+  const IGNORED_FOLDERS = ['.git', 'node_modules', 'dist', 'build', '.next', 'venv', '__pycache__', 'env'];
+  const ALLOWED_EXTENSIONS = ['.py'];
 
   const handleFolderSelect = async (e) => {
     const files = Array.from(e.target.files);
@@ -60,14 +59,12 @@ const Analyze = () => {
   const clearFiles = () => setSelectedFiles([]);
 
   const triggerAnalysis = async () => {
-    // Validation based on mode
     if (mode === 'upload' && selectedFiles.length === 0) return;
     if (mode === 'paste' && !pastedCode.trim()) return;
 
     setIsAnalyzing(true);
 
     try {
-      // Create the payload array. If pasting, we create a single fake file.
       const payloadFiles = mode === 'upload' 
         ? selectedFiles 
         : [{ name: 'manual_snippet.py', content: pastedCode, size: pastedCode.length }];
@@ -81,7 +78,7 @@ const Analyze = () => {
       if (!response.ok) throw new Error("Analysis failed");
       
       const results = await response.json();
-      navigate('/results', { state: { data: results, files: payloadFiles } });
+      navigate('/results', { state: { data: results, files: payloadFiles } }); // Passes the files array!
       
     } catch (error) {
       console.error("Error during analysis:", error);
@@ -100,48 +97,47 @@ const Analyze = () => {
         </h1>
         <p style={{ color: '#94a3b8', fontSize: 'clamp(14px, 2vw, 16px)', maxWidth: '600px' }}>
           {mode === 'select' && "Choose how you want to provide your code for vulnerability analysis."}
-          {mode === 'upload' && "Upload a project folder to parse AST structures and cross-reference dependencies."}
-          {mode === 'paste' && "Paste a code snippet directly into the secure environment for rapid analysis."}
+          {mode === 'upload' && "Upload a Python project folder to parse AST structures and cross-reference dependencies."}
+          {mode === 'paste' && "Paste a Python code snippet directly into the secure environment for rapid analysis."}
         </p>
       </div>
 
       {/* --- MODE 1: SELECTOR --- */}
       {mode === 'select' && (
         <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', justifyContent: 'center', animation: 'coreEntry 0.3s ease' }}>
-          
           <div onClick={() => setMode('upload')} className="glow-on-hover" style={{ background: 'rgba(15, 23, 42, 0.4)', border: '1px solid rgba(255,255,255,0.1)', padding: '40px', borderRadius: '16px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', width: '280px', transition: 'all 0.3s' }}>
             <div style={{ background: 'rgba(212, 175, 55, 0.1)', padding: '20px', borderRadius: '50%', marginBottom: '20px' }}><UploadCloud size={40} color="#d4af37" /></div>
             <h3 style={{ color: 'white', margin: '0 0 10px 0' }}>Upload Folder</h3>
-            <p style={{ color: '#94a3b8', textAlign: 'center', fontSize: '13px', margin: 0 }}>Analyze an entire repository and detect cross-file vulnerabilities.</p>
+            <p style={{ color: '#94a3b8', textAlign: 'center', fontSize: '13px', margin: 0 }}>Analyze a Python repository and detect cross-file vulnerabilities.</p>
           </div>
-
           <div onClick={() => setMode('paste')} className="glow-on-hover" style={{ background: 'rgba(15, 23, 42, 0.4)', border: '1px solid rgba(255,255,255,0.1)', padding: '40px', borderRadius: '16px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', width: '280px', transition: 'all 0.3s' }}>
             <div style={{ background: 'rgba(74, 222, 128, 0.1)', padding: '20px', borderRadius: '50%', marginBottom: '20px' }}><Code2 size={40} color="#4ade80" /></div>
             <h3 style={{ color: 'white', margin: '0 0 10px 0' }}>Paste Snippet</h3>
-            <p style={{ color: '#94a3b8', textAlign: 'center', fontSize: '13px', margin: 0 }}>Quickly scan a single block of code without uploading files.</p>
+            <p style={{ color: '#94a3b8', textAlign: 'center', fontSize: '13px', margin: 0 }}>Quickly scan a single block of Python code without uploading files.</p>
           </div>
-
         </div>
       )}
 
       {/* --- MODE 2: UPLOAD UI --- */}
       {mode === 'upload' && (
-        <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', animation: 'coreEntry 0.3s ease' }}>
-          <button onClick={() => setMode('select')} style={{ alignSelf: 'flex-start', background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px' }}>
+        // ALIGNMENT FIX: Added maxWidth: 800px here to bound the Back button!
+        <div style={{ width: '100%', maxWidth: '800px', display: 'flex', flexDirection: 'column', alignItems: 'center', animation: 'coreEntry 0.3s ease' }}>
+          <button onClick={() => setMode('select')} style={{ alignSelf: 'flex-start', background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px', transition: 'color 0.2s' }} onMouseOver={(e) => e.target.style.color = '#f8fafc'} onMouseOut={(e) => e.target.style.color = '#94a3b8'}>
             <ArrowLeft size={16} /> Back to Options
           </button>
           
-          <div onDragEnter={handleDrag} onDragLeave={handleDrag} onDragOver={handleDrag} onDrop={handleDrop} onClick={() => fileInputRef.current.click()} style={{ width: '100%', maxWidth: '800px', background: dragActive ? 'rgba(212, 175, 55, 0.1)' : 'rgba(15, 23, 42, 0.4)', border: dragActive ? '2px dashed #d4af37' : '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '16px', padding: 'clamp(30px, 5vw, 60px) 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer', backdropFilter: 'blur(10px)', transition: 'all 0.3s ease' }}>
+          <div onDragEnter={handleDrag} onDragLeave={handleDrag} onDragOver={handleDrag} onDrop={handleDrop} onClick={() => fileInputRef.current.click()} style={{ width: '100%', background: dragActive ? 'rgba(212, 175, 55, 0.1)' : 'rgba(15, 23, 42, 0.4)', border: dragActive ? '2px dashed #d4af37' : '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '16px', padding: 'clamp(30px, 5vw, 60px) 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer', backdropFilter: 'blur(10px)', transition: 'all 0.3s ease' }}>
             <div style={{ background: 'rgba(212, 175, 55, 0.1)', padding: '20px', borderRadius: '50%', marginBottom: '20px' }}><Folder size={48} color="#d4af37" /></div>
-            <h3 style={{ color: '#f8fafc', fontSize: 'clamp(18px, 3vw, 22px)', margin: '0 0 10px 0' }}>{dragActive ? "Drop your folder here" : "Click to select a project folder"}</h3>
-            <p style={{ color: '#64748b', fontSize: '14px', textAlign: 'center' }}>Supports .js, .py, .ts, .java, .cpp (Ignores node_modules & hidden files)</p>
+            <h3 style={{ color: '#f8fafc', fontSize: 'clamp(18px, 3vw, 22px)', margin: '0 0 10px 0' }}>{dragActive ? "Drop your folder here" : "Click to select a Python project folder"}</h3>
+            {/* TEXT FIX: Updated description */}
+            <p style={{ color: '#64748b', fontSize: '14px', textAlign: 'center' }}>Strictly parses .py files (Ignores venv, __pycache__, & hidden folders)</p>
             <input type="file" ref={fileInputRef} style={{ display: 'none' }} webkitdirectory="true" directory="true" multiple onChange={handleFolderSelect} />
           </div>
 
           {selectedFiles.length > 0 && (
-            <div style={{ width: '100%', maxWidth: '800px', marginTop: '30px' }}>
+            <div style={{ width: '100%', marginTop: '30px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-                <h4 style={{ color: '#e2e8f0', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}><FileCode size={18} color="#d4af37" /> {selectedFiles.length} Code Files Extracted</h4>
+                <h4 style={{ color: '#e2e8f0', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}><FileCode size={18} color="#d4af37" /> {selectedFiles.length} Python Files Extracted</h4>
                 <button onClick={(e) => { e.stopPropagation(); clearFiles(); }} style={{ background: 'none', border: 'none', color: '#f43f5e', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}><X size={16} /> Clear</button>
               </div>
               <div style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '12px', padding: '15px', maxHeight: '200px', overflowY: 'auto', display: 'grid', gap: '8px' }}>
@@ -158,8 +154,9 @@ const Analyze = () => {
 
       {/* --- MODE 3: PASTE UI --- */}
       {mode === 'paste' && (
-        <div style={{ width: '100%', maxWidth: '900px', display: 'flex', flexDirection: 'column', animation: 'coreEntry 0.3s ease' }}>
-          <button onClick={() => setMode('select')} style={{ alignSelf: 'flex-start', background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px' }}>
+        // ALIGNMENT FIX: Bound the width here to 800px so the Back button aligns perfectly
+        <div style={{ width: '100%', maxWidth: '800px', display: 'flex', flexDirection: 'column', animation: 'coreEntry 0.3s ease' }}>
+          <button onClick={() => setMode('select')} style={{ alignSelf: 'flex-start', background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px', transition: 'color 0.2s' }} onMouseOver={(e) => e.target.style.color = '#f8fafc'} onMouseOut={(e) => e.target.style.color = '#94a3b8'}>
             <ArrowLeft size={16} /> Back to Options
           </button>
           
@@ -170,7 +167,7 @@ const Analyze = () => {
             <textarea 
               value={pastedCode}
               onChange={(e) => setPastedCode(e.target.value)}
-              placeholder="// Paste your vulnerable code snippet here..."
+              placeholder="# Paste your vulnerable Python code snippet here..."
               spellCheck="false"
               style={{ width: '100%', height: '400px', background: 'transparent', border: 'none', color: '#f8fafc', fontFamily: 'monospace', fontSize: '14px', padding: '20px', outline: 'none', resize: 'vertical' }}
             />
