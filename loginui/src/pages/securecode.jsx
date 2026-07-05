@@ -11,27 +11,31 @@ import '../assets/premium-theme.css';
 const SecureCode = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  
-  const { files, issues, data } = location.state || {}; 
-  
-  // 1. NEW: Mutable Local State so users can edit and paste new files
+  const storedData = JSON.parse(sessionStorage.getItem('secureWorkspace') || 'null');
+  const { files, issues, data } = storedData || location.state || {};
   const [localFiles, setLocalFiles] = useState(files || []);
-  
   const [activeFileIdx, setActiveFileIdx] = useState(0);
   const [securePatches, setSecurePatches] = useState({}); 
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSplitView, setIsSplitView] = useState(true);
   const [copied, setCopied] = useState(false);
-  
   const [isCopilotOpen, setIsCopilotOpen] = useState(false);
   const [chatMessages, setChatMessages] = useState([]);
   const [chatInput, setChatInput] = useState('');
   const [isChatTyping, setIsChatTyping] = useState(false);
   const chatScrollRef = useRef(null);
 
-  // Guard Clause uses localFiles now
-  if (!localFiles || localFiles.length === 0) return <Navigate to="/analyze" />;
-
+  if (!localFiles || localFiles.length === 0) {
+    return (
+      <div style={{ padding: '100px', textAlign: 'center', color: '#f8fafc', background: '#0f172a', minHeight: '100vh' }}>
+        <h1 style={{ color: '#ef4444', fontSize: '32px' }}>🚨 ROUTING ERROR</h1>
+        <p>The files were dropped! Check your App.jsx route paths.</p>
+        <button onClick={() => navigate(-1)} style={{ padding: '10px 20px', cursor: 'pointer', background: '#d4af37', border: 'none', borderRadius: '8px', marginTop: '20px', fontWeight: 'bold' }}>
+          Go Back
+        </button>
+      </div>
+    );
+  }
   const activeFile = localFiles[activeFileIdx] || { name: 'unknown', content: '' };
   const currentSecureCode = securePatches[activeFile.name] || '';
 

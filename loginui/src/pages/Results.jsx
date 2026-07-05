@@ -199,8 +199,11 @@ const Results = () => {
         {/* REMEDIATION CTA */}
         <div style={{ display: 'flex', justifyContent: 'center', margin: '15px 0', width: '100%' }}>
           <button 
-            // NEW: Pass the `fileArray` instead of just a string
-            onClick={() => navigate('/secure-code', { state: { data, issues, files: fileArray } })} 
+            
+            onClick={() => {
+              sessionStorage.setItem('secureWorkspace', JSON.stringify({ data, issues, files: fileArray }));
+              navigate('/secure-code');
+            }}
             className="glow-on-hover"
             style={{ background: 'transparent', border: '1px solid #d4af37', color: '#d4af37', padding: 'clamp(12px, 3vw, 15px) clamp(20px, 4vw, 40px)', borderRadius: '30px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontSize: 'clamp(12px, 2.5vw, 15px)', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '1px', width: '100%', maxWidth: '400px', justifyContent: 'center' }}
           >
