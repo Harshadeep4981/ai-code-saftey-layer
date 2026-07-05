@@ -235,18 +235,6 @@ const SecureCode = () => {
               {isSplitView ? <><Maximize size={14}/> Unified</> : <><Columns size={14}/> Split View</>}
             </button>
             <div style={{ display: 'flex', gap: '8px' }}>
-              {activeFile.content.trim() && (
-                <button onClick={() => {
-                   // This acts as a manual "Scan" for a newly pasted file
-                   setSecurePatches(prev => {
-                     const next = {...prev};
-                     delete next[activeFile.name];
-                     return next;
-                   });
-                }} style={{ background: 'rgba(212, 175, 55, 0.15)', border: '1px solid #d4af37', color: '#d4af37', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px' }}>
-                  <Activity size={14} /> Scan Changes
-                </button>
-              )}
               <button onClick={handleCopy} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: copied ? '#4ade80' : '#cbd5e1', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', transition: 'color 0.3s' }}>
                 {copied ? <><Check size={14}/> Copied</> : <><Copy size={14}/> Copy</>}
               </button>

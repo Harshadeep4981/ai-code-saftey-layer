@@ -30,6 +30,11 @@ const Analyze = () => {
       const hasValidExtension = ALLOWED_EXTENSIONS.some(ext => file.name.endsWith(ext));
       return !hasIgnoredFolder && hasValidExtension && !file.name.startsWith('.');
     });
+    if (validFiles.length > 15) {
+      alert(`You tried to upload ${validFiles.length} Python files.please limit your scan to a maximum of 15 files.`);
+      setDragActive(false);
+      return; 
+    }
 
     const parsedFiles = await Promise.all(
       validFiles.map(async (file) => {
