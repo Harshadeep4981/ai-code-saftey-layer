@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Eye, EyeOff, Shield, Volume2, VolumeX, CheckCircle } from "lucide-react";
-import { authService } from "../services/auth"; // <-- NEW: Backend connection
+import { authService } from "../services/auth";
 import "./authscene.css";
-
+import { useGoogleLogin } from '@react-oauth/google';
 // ============================================================
 // AUDIO SYNTHESIS ENGINE
 // ============================================================
@@ -82,10 +82,6 @@ function useLampAudio(isMuted) {
 
   return { playBeadClick, playSwitchClick, playTungstenFlicker };
 }
-
-// ============================================================
-// MAIN COMPONENT
-// ============================================================
 export default function AuthScene({ onSubmit, onGoogleSignIn }) {
   const [phase, setPhase] = useState("idle");
   const [isMuted, setIsMuted] = useState(false);
@@ -207,45 +203,47 @@ export default function AuthScene({ onSubmit, onGoogleSignIn }) {
           }
           break;
         
-        // NEW: STEP 1 - Send the email
         case "signUp_step1":
           await authService.requestOtp({ username: formData.fullName, email: formData.email });
-          switchMode("signUp_step2_otp"); // Only switches if API succeeds!
+          switchMode("signUp_step2_otp");
           break;
           
-        // NEW: STEP 2 - Verify the code
         case "signUp_step2_otp":
-          const otpString = otp.join(""); // Convert array to "123456"
+          const otpString = otp.join("");
           await authService.verifyOtp({ email: formData.email, otp: otpString });
           switchMode("signUp_step3_pwd");
           break;
           
-        // NEW: STEP 3 - Finalize Account
         case "signUp_step3_pwd":
           await authService.finalizeSignup({ 
             email: formData.email, 
             password: formData.password,
             confirm_password: formData.confirmPassword
           });
+          // AUTO-LOGIN FIX: Fetch the token immediately so the dashboard has the name
+          const autoLoginRes = await authService.login({ 
+            email: formData.email, 
+            password: formData.password 
+          });
+          if (autoLoginRes.access_token) {
+            localStorage.setItem("access_token", autoLoginRes.access_token);
+          }
           switchMode("success_screen");
           setTimeout(() => triggerSuccess({ action: 'signup', ...formData }), 1500);
           break;
-        // FORGOT PASSWORD FLOW
+
         case "forgot_step1":
-          // NEW: Actually tell the backend to send the email!
           await authService.forgotPassword({ email: formData.email });
           switchMode("forgot_step2_otp");
           break;
           
         case "forgot_step2_otp":
-          // NEW: Send the OTP to the backend to verify it
           const resetOtpString = otp.join("");
           await authService.verifyResetOtp({ email: formData.email, otp: resetOtpString });
           switchMode("forgot_step3_pwd");
           break;
           
         case "forgot_step3_pwd":
-          // NEW: Send the new password to the backend to save it
           await authService.resetPassword({ 
             email: formData.email, 
             new_password: formData.password,
@@ -260,7 +258,24 @@ export default function AuthScene({ onSubmit, onGoogleSignIn }) {
       alert(err.message || "An unexpected error occurred."); 
     }
   };
-
+  const handleGoogleLogin = useGoogleLogin({
+    onSuccess: async (tokenResponse) => {
+      try {
+        // 1. Google gave us an access token. Send it to our FastAPI backend.
+        const res = await authService.googleLogin({ access_token: tokenResponse.access_token });
+        
+        // 2. The backend verified it and gave us our internal JWT! Log them in.
+        if (res.access_token) {
+          localStorage.setItem("access_token", res.access_token);
+          triggerSuccess({ action: 'google_login' });
+        }
+      } catch (err) {
+        console.error("Google Server Error:", err);
+        alert("Failed to authenticate with backend.");
+      }
+    },
+    onError: (error) => console.error('Google Login Failed', error)
+  });
   const triggerSuccess = (payload) => {
     setPhase("success");
     setTimeout(() => {
@@ -331,7 +346,7 @@ export default function AuthScene({ onSubmit, onGoogleSignIn }) {
               <button type="submit" className="btn-primary">Sign In</button>
             </div>
             <div className="reveal-item" style={{ "--reveal-delay": "1300ms" }}>
-              <button type="button" className="btn-secondary" onClick={onGoogleSignIn}>
+              <button type="button" className="btn-secondary" onClick={() => handleGoogleLogin()}>
                 <GoogleIcon /> Continue with Google
               </button>
             </div>
@@ -378,6 +393,8 @@ export default function AuthScene({ onSubmit, onGoogleSignIn }) {
                   ref={(el) => (otpRefs.current[index] = el)}
                   className="otp-input"
                   type="text"
+                  inputMode="numeric" // Forces the number pad on mobile devices
+                  pattern="[0-9]*"    // Fallback for some mobile browsers
                   maxLength={1}
                   value={digit}
                   onChange={(e) => handleOtpChange(index, e.target.value)}

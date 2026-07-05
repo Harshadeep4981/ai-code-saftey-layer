@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import AuthScene from './components/authscene';
 import MainLayout from './components/MainLayout';
@@ -9,15 +9,11 @@ import SecureCode from './pages/securecode';
 import AdminDashboard from './pages/AdminDashboard'; 
 
 const App = () => {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-
-  // Check if the user is already logged in when they refresh the page
-  useEffect(() => {
-    const token = localStorage.getItem('access_token');
-    if (token) {
-      setIsAuthenticated(true);
-    }
-  }, []);
+  // FIX: Synchronous state initialization. 
+  // This checks local storage instantly before React even paints the first screen!
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    return localStorage.getItem('access_token') !== null;
+  });
 
   // Fired when the Lamp UI finishes its success animation
   const handleLoginSuccess = (payload) => {
@@ -29,24 +25,27 @@ const App = () => {
     setIsAuthenticated(false);
   };
 
-  // 1. IF NOT LOGGED IN: Show the Lamp UI (No routing needed yet)
-  if (!isAuthenticated) {
-    return <AuthScene onSubmit={handleLoginSuccess} />;
-  }
-
-  // 2. IF LOGGED IN: Show the Dashboard inside the Premium Layout
   return (
+    // Wrap the ENTIRE app in BrowserRouter to prevent routing glitches
     <BrowserRouter>
-      <MainLayout onLogout={handleLogout}>
+      {!isAuthenticated ? (
+        // IF NOT LOGGED IN: Show the Lamp UI 
         <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/analyze" element={<Analyze />} />
-          <Route path="/results" element={<Results />} />
-          <Route path="/admin" element={<AdminDashboard />} />
-          <Route path="/secure-code" element={<SecureCode />} />
-          <Route path="*" element={<Navigate to="/" />} />
+          <Route path="*" element={<AuthScene onSubmit={handleLoginSuccess} />} />
         </Routes>
-      </MainLayout>
+      ) : (
+        // IF LOGGED IN: Show the secure layout and specific pages
+        <MainLayout onLogout={handleLogout}>
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/dashboard" element={<Dashboard />} /> {/* Added an alias just in case */}
+            <Route path="/analyze" element={<Analyze />} />
+            <Route path="/results" element={<Results />} />
+            <Route path="/admin" element={<AdminDashboard />} />
+            <Route path="*" element={<Navigate to="/" />} />
+          </Routes>
+        </MainLayout>
+      )}
     </BrowserRouter>
   );
 };

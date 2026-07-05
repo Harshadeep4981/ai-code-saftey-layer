@@ -43,23 +43,34 @@ async def scan():
 @app.post("/analyze", response_class=JSONResponse)
 async def analyze(request: Request):
     data = await request.json() 
-    code = data.get("code", "")
-    lines = code.splitlines()
-    issues = []
+   
+    files = data.get("files", [])
+    
+    all_issues = []
+    
+    for f in files:
+        filename = f.get("name", "unknown_file.py")
+        content = f.get("content", "")
+        lines = content.splitlines()
+        
+        file_issues = []
+       
+        analyze_file(lines, filename, file_issues) 
+        
+        all_issues.extend(file_issues)
 
-    analyze_file(lines, "user_code.py", issues)
-    summary = generate_summary(issues, 1)
+    summary = generate_summary(all_issues, len(files))
 
     severity_order = {"high": 0, "medium": 1, "low": 2}
-    issues = sorted(
-        issues,
-        key=lambda issue: severity_order.get(issue["severity"], 3)
+    all_issues = sorted(
+        all_issues,
+        key=lambda issue: severity_order.get(issue.get("severity", "low").lower(), 3)
     )
 
     return {
-        "issues": issues,
+        "issues": all_issues,
         "summary": summary,
-        "original_code": code
+        "analyzed_file_count": len(files)
     }
 
 @app.post("/explain_issue", response_class=JSONResponse)

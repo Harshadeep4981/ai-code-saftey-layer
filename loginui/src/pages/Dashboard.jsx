@@ -70,12 +70,12 @@ const Dashboard = () => {
         </div>
         
         <h1 style={{ 
-          fontSize: '28px', 
+          fontSize: 'clamp(20px, 4vw, 28px)', 
           fontWeight: '800', 
           background: 'linear-gradient(to right, #d4af37, #fde047)',
           WebkitBackgroundClip: 'text',
           WebkitTextFillColor: 'transparent',
-          letterSpacing: '10px', 
+          letterSpacing: 'clamp(5px, 2vw, 10px)', 
           textTransform: 'uppercase',
           margin: 0,
           textShadow: '0 0 10px rgba(0,0,0,0.5)'
@@ -92,11 +92,12 @@ const Dashboard = () => {
         textAlign: 'center',
         animation: 'coreEntry 1s ease-out',
         zIndex: 10,
-        marginBottom: '80px'
+        marginBottom: '80px',
+        width: '100%'
       }}>
         
         <h2 style={{ 
-          fontSize: '48px', 
+          fontSize: 'clamp(28px, 6vw, 48px)', 
           fontWeight: '300', 
           color: '#f8fafc', 
           margin: '0 0 5px 0', 
@@ -106,19 +107,21 @@ const Dashboard = () => {
         </h2>
         
         <h2 style={{ 
-          fontSize: '64px', 
+          fontSize: 'clamp(36px, 8vw, 64px)', 
           fontWeight: '600', 
           color: '#d4af37', 
           margin: '0 0 20px 0', 
           letterSpacing: '1px',
-          textShadow: '0 0 30px rgba(212,175,55,0.3)' 
+          textShadow: '0 0 30px rgba(212,175,55,0.3)',
+          wordBreak: 'break-word',
+          padding: '0 10px'
         }}>
           {username}
         </h2>
         
         <p style={{ 
           color: '#94a3b8', 
-          fontSize: '15px', 
+          fontSize: 'clamp(11px, 2.5vw, 15px)', 
           textTransform: 'uppercase',
           letterSpacing: '2px', 
           marginBottom: '40px',
@@ -126,7 +129,7 @@ const Dashboard = () => {
           alignItems: 'center',
           gap: '10px',
           background: 'rgba(255,255,255,0.03)',
-          padding: '10px 20px',
+          padding: '10px 15px',
           borderRadius: '30px',
           border: '1px solid rgba(255,255,255,0.05)'
         }}>
@@ -142,9 +145,9 @@ const Dashboard = () => {
             background: 'rgba(212, 175, 55, 0.05)',
             border: '1px solid rgba(212, 175, 55, 0.4)',
             color: '#d4af37',
-            padding: '18px 50px',
+            padding: 'clamp(14px, 3vw, 18px) clamp(20px, 4vw, 50px)',
             borderRadius: '40px',
-            fontSize: '16px',
+            fontSize: 'clamp(13px, 2.5vw, 16px)',
             fontWeight: '600',
             letterSpacing: '1.5px',
             cursor: 'pointer',
@@ -152,7 +155,10 @@ const Dashboard = () => {
             textTransform: 'uppercase',
             display: 'flex',
             alignItems: 'center',
-            gap: '12px'
+            justifyContent: 'center',
+            gap: '12px',
+            width: '90%',
+            maxWidth: '400px'
           }}
           onMouseOver={(e) => {
             e.currentTarget.style.background = 'rgba(212, 175, 55, 0.15)';
@@ -178,11 +184,11 @@ const Dashboard = () => {
         
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '25px', paddingLeft: '10px' }}>
           <div style={{ height: '1px', flex: 1, background: 'linear-gradient(90deg, rgba(212,175,55,0) 0%, rgba(212,175,55,0.2) 100%)' }}></div>
-          <span style={{ color: '#d4af37', fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '3px' }}>DevSecOps Pipeline Overview</span>
+          <span style={{ color: '#d4af37', fontSize: 'clamp(10px, 2vw, 12px)', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '3px' }}>DevSecOps Pipeline Overview</span>
           <div style={{ height: '1px', flex: 1, background: 'linear-gradient(90deg, rgba(212,175,55,0.2) 0%, rgba(212,175,55,0) 100%)' }}></div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '25px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '25px' }}>
           
           {/* Step 1 */}
           <div 

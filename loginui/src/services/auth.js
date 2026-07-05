@@ -55,5 +55,14 @@ export const authService = {
     });
     if (!res.ok) throw new Error((await res.json()).detail || "Failed to reset password");
     return res.json();
+  },
+  googleLogin: async (data) => {
+    const res = await fetch(`${API_URL}/google`, {
+      method: "POST", 
+      headers: { "Content-Type": "application/json" }, 
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) throw new Error((await res.json()).detail || "Google authentication failed");
+    return res.json();
   }
 };

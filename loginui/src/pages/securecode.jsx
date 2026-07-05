@@ -4,20 +4,25 @@ import { apiService } from '../services/api';
 import { 
   ArrowLeft, Copy, Download, Columns, Maximize, 
   Loader2, Check, ShieldCheck, ArrowRight, 
-  CheckCircle2, Activity, Save, Send, User, Bot, X
+  CheckCircle2, Activity, Save, Send, Bot, X, FileCode
 } from 'lucide-react';
 import '../assets/premium-theme.css';
 
 const SecureCode = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { originalCode, issues, data } = location.state || {}; 
+  // NEW: Expecting a `files` array
+  const { files, issues, data } = location.state || {}; 
 
-  const [secureCode, setSecureCode] = useState('');
-  const [isGenerating, setIsGenerating] = useState(true);
+  // Normalize fallback in case of direct navigation
+  const fileArray = files || [];
+  
+  const [activeFileIdx, setActiveFileIdx] = useState(0);
+  const [securePatches, setSecurePatches] = useState({}); // Cache for generated code
+  
+  const [isGenerating, setIsGenerating] = useState(false);
   const [isSplitView, setIsSplitView] = useState(true);
   const [copied, setCopied] = useState(false);
-  const hasFetched = useRef(false);
 
   // --- FLOATING COPILOT STATE ---
   const [isCopilotOpen, setIsCopilotOpen] = useState(false);
@@ -26,13 +31,16 @@ const SecureCode = () => {
   const [isChatTyping, setIsChatTyping] = useState(false);
   const chatScrollRef = useRef(null);
 
-  if (!originalCode) return <Navigate to="/analyze" />;
+  if (!fileArray || fileArray.length === 0) return <Navigate to="/analyze" />;
 
+  const activeFile = fileArray[activeFileIdx] || { name: 'unknown', content: '' };
+  const currentSecureCode = securePatches[activeFile.name] || '';
+
+  // Calculate generic score
   let tempScore = data?.summary?.score || 10;
   if (tempScore >= 9 && issues && issues.length > 0) {
       tempScore = Math.max(1.5, 10 - (issues.length * 0.8)); 
   }
-  
   const originalScore = Number(tempScore).toFixed(1);
   const finalScore = (10.0).toFixed(1); 
   const improvement = (finalScore - originalScore).toFixed(1);
@@ -48,56 +56,60 @@ const SecureCode = () => {
     flexShrink: 0 
   };
 
-  // Generate dynamic context for the AI's first message
+  // Generate dynamic context for the AI
   const generateRealAIContext = () => {
-    if (!issues || issues.length === 0) {
-      return "I've reviewed the code and confirmed it meets production-ready security standards. What would you like to know?";
-    }
+    if (!issues || issues.length === 0) return "I've reviewed the code. What would you like to know?";
     const highRisk = issues.filter(i => (i.severity || '').toLowerCase() === 'high' || (i.severity || '').toLowerCase() === 'critical');
-    
-    let explanation = `I've successfully engineered this patch to resolve ${issues.length} vulnerabilities. `;
-
+    let explanation = `I've mapped out the vulnerabilities across ${fileArray.length} files. `;
     if (highRisk.length > 0) {
-      const highRiskNames = highRisk.map(i => i.issue || i.name || 'Security Flaw').join(", ");
-      explanation += `Crucially, I neutralized critical threats including: ${highRiskNames}. `;
+      explanation += `Neutralized critical threats including: ${highRisk[0].issue || 'Security Flaw'}. `;
     }
-    explanation += "What would you like me to explain about the security choices I made?";
+    explanation += "What would you like me to explain about the active file?";
     return explanation;
   };
 
-  // Populate initial message only when copilot is opened for the first time
   useEffect(() => {
     if (isCopilotOpen && chatMessages.length === 0) {
       setChatMessages([{ role: 'ai', content: generateRealAIContext() }]);
     }
   }, [isCopilotOpen]);
 
-  // Auto-scroll chat
   useEffect(() => {
     if (chatScrollRef.current) {
       chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
     }
   }, [chatMessages, isChatTyping, isCopilotOpen]);
 
-  // Fetch the secure code
+  // --- DYNAMIC PER-FILE PATCH GENERATOR ---
   useEffect(() => {
     const fetchSecureCode = async () => {
-      if (hasFetched.current) return;
-      hasFetched.current = true;
+      // If we already generated this file's patch, don't do it again
+      if (securePatches[activeFile.name]) return; 
       
+      setIsGenerating(true);
+      
+      // Filter issues to only include ones found in THIS active file
+      const activeFileIssues = (issues || []).filter(i => i.file === activeFile.name);
+
       try {
-        const res = await apiService.generateSecureCode(originalCode, issues);
-        setSecureCode(res.secure_code);
+        if (activeFileIssues.length === 0) {
+          // If this file has no issues, the patch is just the original code!
+          setSecurePatches(prev => ({ ...prev, [activeFile.name]: activeFile.content }));
+        } else {
+          // Tell the backend to fix ONLY this file's code using ONLY this file's issues
+          const res = await apiService.generateSecureCode(activeFile.content, activeFileIssues);
+          setSecurePatches(prev => ({ ...prev, [activeFile.name]: res.secure_code }));
+        }
       } catch (err) {
-        setSecureCode("# FATAL ERROR: Failed to generate secure code.\n# Please check backend connection.");
+        setSecurePatches(prev => ({ ...prev, [activeFile.name]: "# FATAL ERROR: Failed to generate secure code for this file." }));
       } finally {
         setIsGenerating(false);
       }
     };
+    
     fetchSecureCode();
-  }, [originalCode, issues]);
+  }, [activeFileIdx, activeFile.name, activeFile.content, issues, securePatches]);
 
-  // --- REAL AI API INTEGRATION ---
   const handleSendMessage = async (e) => {
     e.preventDefault();
     if (!chatInput.trim()) return;
@@ -108,14 +120,12 @@ const SecureCode = () => {
     setIsChatTyping(true);
 
     try {
-      // Calls the FastAPI endpoint with the chat history AND the code!
       const response = await apiService.sendChatMessage(
         userMessage, 
         chatMessages,  
-        secureCode,    
+        currentSecureCode,    
         issues         
       );
-      
       setChatMessages(prev => [...prev, { role: 'ai', content: response.reply }]);
     } catch (error) {
       setChatMessages(prev => [...prev, { role: 'ai', content: "SYSTEM ERROR: Connection to AI Architect lost." }]);
@@ -125,17 +135,18 @@ const SecureCode = () => {
   };
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(secureCode);
+    navigator.clipboard.writeText(currentSecureCode);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
   const handleDownload = () => {
-    const blob = new Blob([secureCode], { type: 'text/plain' });
+    const blob = new Blob([currentSecureCode], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = 'secure_patch.py';
+    // Download uses the actual filename instead of generic name
+    link.download = `secure_${activeFile.name.split('/').pop()}`; 
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -154,150 +165,153 @@ const SecureCode = () => {
   };
 
   return (
-    <div style={{ width: '100%', maxWidth: '1200px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '20px', paddingBottom: '60px', zIndex: 10, marginTop: '-20px' }}>
+    <div style={{ width: '100%', maxWidth: '1200px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '20px', padding: '0 20px 60px 20px', zIndex: 10 }}>
       
-      {/* HEADER */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '20px', flexShrink: 0, flexWrap: 'wrap' }}>
-        <button onClick={() => navigate('/results', { state: { data, originalCode } })} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#94a3b8', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 15px', borderRadius: '8px', transition: 'all 0.3s', fontSize: '13px' }}>
-          <ArrowLeft size={16} /> Back to Report
+      {/* RESPONSIVE HEADER */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '15px', flexWrap: 'wrap' }}>
+        <button onClick={() => navigate(-1)} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#94a3b8', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 15px', borderRadius: '8px', transition: 'all 0.3s', fontSize: '13px' }}>
+          <ArrowLeft size={16} /> Back
         </button>
-        <h1 style={{ fontSize: '24px', fontWeight: '400', margin: 0, color: '#4ade80', letterSpacing: '1px', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <h1 style={{ fontSize: 'clamp(18px, 4vw, 24px)', fontWeight: '400', margin: 0, color: '#4ade80', letterSpacing: '1px', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '10px' }}>
           <ShieldCheck size={26} /> AI Remediation Workspace
         </h1>
-        <span style={{ color: '#94a3b8', fontSize: '12px', letterSpacing: '2px', textTransform: 'uppercase', borderLeft: '1px solid rgba(255,255,255,0.1)', paddingLeft: '20px' }}>Validated Secure Patch</span>
+      </div>
+
+      {/* NEW: HORIZONTAL FILE SELECTOR BAR */}
+      <div style={{ 
+        display: 'flex', 
+        gap: '10px', 
+        overflowX: 'auto', 
+        paddingBottom: '10px',
+        borderBottom: '1px solid rgba(255,255,255,0.05)'
+      }}>
+        {fileArray.map((file, idx) => {
+          const hasIssues = (issues || []).some(i => i.file === file.name);
+          const isActive = activeFileIdx === idx;
+          
+          return (
+            <button
+              key={idx}
+              onClick={() => setActiveFileIdx(idx)}
+              style={{
+                background: isActive ? 'rgba(212, 175, 55, 0.15)' : 'rgba(255,255,255,0.02)',
+                border: isActive ? '1px solid rgba(212, 175, 55, 0.5)' : '1px solid rgba(255,255,255,0.1)',
+                color: isActive ? '#d4af37' : '#94a3b8',
+                padding: '8px 16px',
+                borderRadius: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                fontSize: '13px',
+                fontFamily: 'monospace',
+                transition: 'all 0.2s'
+              }}
+            >
+              <FileCode size={14} color={isActive ? '#d4af37' : '#64748b'} />
+              {file.name.split('/').pop()}
+              {hasIssues && <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#ef4444', marginLeft: '5px' }} />}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* IMPROVEMENT TIMELINE */}
+      <div style={{ ...glassStyle, display: 'flex', flexWrap: 'wrap', padding: '20px', alignItems: 'center', justifyContent: 'center', gap: '25px', background: 'linear-gradient(90deg, rgba(15,23,42,0.6) 0%, rgba(20,40,30,0.6) 100%)' }}>
+        
+        <div style={{ textAlign: 'center', minWidth: '100px' }}>
+          <span style={{ color: '#94a3b8', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '1px' }}>Original Score</span>
+          <div style={{ fontSize: 'clamp(28px, 5vw, 38px)', fontWeight: 'bold', color: '#ef4444', lineHeight: '1.2', marginTop: '5px' }}>
+            {originalScore}<span style={{ fontSize: '14px', color: '#64748b' }}>/10</span>
+          </div>
+        </div>
+
+        <ArrowRight color="#64748b" size={20} style={{ display: window.innerWidth > 600 ? 'block' : 'none' }} />
+
+        <div style={{ flex: '1 1 250px', background: 'rgba(0,0,0,0.3)', borderRadius: '12px', padding: '15px', border: '1px solid rgba(74, 222, 128, 0.2)' }}>
+          <h4 style={{ margin: '0 0 12px 0', color: '#cbd5e1', fontSize: '12px', letterSpacing: '1px', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Activity size={16} color="#4ade80" /> Recursive Validation Pipeline
+          </h4>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '10px', fontSize: '11px', color: '#4ade80' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><CheckCircle2 size={14} /> AI Generated Patch</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><CheckCircle2 size={14} /> Security Rules Passed</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#d4af37' }}><ShieldCheck size={14} /> 98.4% Confidence</div>
+          </div>
+        </div>
+
+        <ArrowRight color="#4ade80" size={20} style={{ display: window.innerWidth > 600 ? 'block' : 'none' }} />
+
+        <div style={{ textAlign: 'center', minWidth: '100px' }}>
+          <span style={{ color: '#4ade80', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '1px' }}>Final Score</span>
+          <div style={{ fontSize: 'clamp(28px, 5vw, 38px)', fontWeight: 'bold', color: '#4ade80', lineHeight: '1.2', marginTop: '5px', textShadow: '0 0 20px rgba(74,222,128,0.4)' }}>
+            {finalScore}<span style={{ fontSize: '14px', color: '#64748b' }}>/10</span>
+          </div>
+          <div style={{ color: '#4ade80', fontSize: '11px', marginTop: '5px', fontWeight: 'bold' }}>↑ +{improvement} Improved</div>
+        </div>
       </div>
 
       {isGenerating ? (
-        <div style={{ ...glassStyle, minHeight: '500px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#4ade80', gap: '20px' }}>
+        <div style={{ ...glassStyle, minHeight: '400px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#4ade80', gap: '20px' }}>
           <Loader2 className="animate-spin" size={50} />
-          <h2 style={{ fontFamily: 'monospace', letterSpacing: '2px', margin: 0, fontSize: '18px' }}>EXECUTING RECURSIVE VALIDATION...</h2>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', color: '#94a3b8', fontFamily: 'monospace', fontSize: '14px' }}>
-            <span>&gt; Generating AI Patch...</span>
-            <span style={{ opacity: 0.5 }}>&gt; Running Analyzer...</span>
-            <span style={{ opacity: 0.2 }}>&gt; Verifying Security Rules...</span>
-          </div>
+          <h2 style={{ fontFamily: 'monospace', letterSpacing: '1px', margin: 0, fontSize: '14px', textAlign: 'center', padding: '0 20px' }}>GENERATING PATCH FOR {activeFile.name}...</h2>
         </div>
       ) : (
         <>
-          {/* IMPROVEMENT TIMELINE */}
-          <div style={{ ...glassStyle, display: 'flex', flexWrap: 'wrap', padding: '20px', alignItems: 'center', justifyContent: 'center', gap: '25px', background: 'linear-gradient(90deg, rgba(15,23,42,0.6) 0%, rgba(20,40,30,0.6) 100%)' }}>
+          {/* RESPONSIVE WORKSPACE AREA */}
+          <div style={{ ...glassStyle, display: 'flex', flexDirection: 'column', minHeight: '480px' }}>
             
-            <div style={{ textAlign: 'center', minWidth: '120px' }}>
-              <span style={{ color: '#94a3b8', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '1px' }}>Original Score</span>
-              <div style={{ fontSize: '38px', fontWeight: 'bold', color: '#ef4444', lineHeight: '1.2', marginTop: '5px' }}>
-                {originalScore}<span style={{ fontSize: '16px', color: '#64748b' }}>/10</span>
-              </div>
-            </div>
-
-            <ArrowRight color="#64748b" size={24} />
-
-            <div style={{ flex: '1 1 300px', background: 'rgba(0,0,0,0.3)', borderRadius: '12px', padding: '15px', border: '1px solid rgba(74, 222, 128, 0.2)' }}>
-              <h4 style={{ margin: '0 0 12px 0', color: '#cbd5e1', fontSize: '12px', letterSpacing: '1px', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Activity size={16} color="#4ade80" /> Recursive Validation Pipeline
-              </h4>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px', fontSize: '12px', color: '#4ade80' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><CheckCircle2 size={14} /> AI Generated Patch</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><CheckCircle2 size={14} /> Security Rules Passed</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><CheckCircle2 size={14} /> Analyzer Executed</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#d4af37' }}><ShieldCheck size={14} /> Pipeline Confidence: 98.4%</div>
-              </div>
-            </div>
-
-            <ArrowRight color="#4ade80" size={24} />
-
-            <div style={{ textAlign: 'center', minWidth: '120px' }}>
-              <span style={{ color: '#4ade80', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '1px' }}>Final Score</span>
-              <div style={{ fontSize: '38px', fontWeight: 'bold', color: '#4ade80', lineHeight: '1.2', marginTop: '5px', textShadow: '0 0 20px rgba(74,222,128,0.4)' }}>
-                {finalScore}<span style={{ fontSize: '16px', color: '#64748b' }}>/10</span>
-              </div>
-              <div style={{ color: '#4ade80', fontSize: '12px', marginTop: '5px', fontWeight: 'bold' }}>↑ +{improvement} Improved</div>
-            </div>
-          </div>
-
-          {/* WORKSPACE AREA */}
-          <div style={{ ...glassStyle, display: 'flex', flexDirection: 'column', height: '480px' }}>
-            
-            <div style={{ background: 'rgba(0,0,0,0.3)', padding: '12px 20px', display: 'flex', flexWrap: 'wrap', gap: '15px', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-              <button onClick={() => setIsSplitView(!isSplitView)} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#cbd5e1', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px' }}>
-                {isSplitView ? <><Maximize size={14}/> Unified View</> : <><Columns size={14}/> Split Diff View</>}
+            <div style={{ background: 'rgba(0,0,0,0.3)', padding: '12px 15px', display: 'flex', flexWrap: 'wrap', gap: '10px', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+              <button onClick={() => setIsSplitView(!isSplitView)} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#cbd5e1', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px' }}>
+                {isSplitView ? <><Maximize size={14}/> Unified</> : <><Columns size={14}/> Split View</>}
               </button>
               
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <button onClick={handleCopy} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: copied ? '#4ade80' : '#cbd5e1', padding: '6px 15px', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', transition: 'color 0.3s' }}>
-                  {copied ? <><Check size={14}/> Copied</> : <><Copy size={14}/> Copy Code</>}
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button onClick={handleCopy} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: copied ? '#4ade80' : '#cbd5e1', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', transition: 'color 0.3s' }}>
+                  {copied ? <><Check size={14}/> Copied</> : <><Copy size={14}/> Copy</>}
                 </button>
-                <button onClick={handleDownload} style={{ background: 'rgba(74, 222, 128, 0.15)', border: '1px solid #4ade80', color: '#4ade80', padding: '6px 20px', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', fontWeight: 'bold' }}>
-                  <Download size={14} /> Export Secure Patch
+                <button onClick={handleDownload} style={{ background: 'rgba(74, 222, 128, 0.15)', border: '1px solid #4ade80', color: '#4ade80', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', fontWeight: 'bold' }}>
+                  <Download size={14} /> Export File
                 </button>
               </div>
             </div>
 
-            <div style={{ display: 'flex', flex: 1, overflowY: 'auto' }}>
+            {/* NEW: flexWrap allows the side-by-side to stack vertically on mobile! */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', flex: 1, overflowY: 'auto' }}>
               
               {isSplitView && (
-                <div style={{ flex: 1, borderRight: '1px solid rgba(239, 68, 68, 0.2)', display: 'flex', flexDirection: 'column', background: 'rgba(239, 68, 68, 0.02)' }}>
-                  <div style={{ background: 'rgba(239, 68, 68, 0.1)', padding: '10px 20px', color: '#ef4444', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', borderBottom: '1px solid rgba(239, 68, 68, 0.2)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ fontSize: '14px' }}>-</span> ORIGINAL (VULNERABLE)
+                <div style={{ flex: '1 1 300px', minWidth: '300px', borderRight: '1px solid rgba(239, 68, 68, 0.2)', display: 'flex', flexDirection: 'column', background: 'rgba(239, 68, 68, 0.02)' }}>
+                  <div style={{ background: 'rgba(239, 68, 68, 0.1)', padding: '10px 15px', color: '#ef4444', fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px', borderBottom: '1px solid rgba(239, 68, 68, 0.2)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '12px' }}>-</span> ORIGINAL (VULNERABLE)
                   </div>
-                  <div style={{ display: 'flex', flex: 1 }}>
-                    {renderLineNumbers(originalCode)}
+                  <div style={{ display: 'flex', flex: 1, minHeight: '300px' }}>
+                    {renderLineNumbers(activeFile.content)}
                     <textarea 
                       readOnly
-                      value={originalCode}
+                      value={activeFile.content}
                       spellCheck="false"
-                      style={{ flex: 1, background: 'transparent', border: 'none', color: '#f8fafc', fontFamily: 'monospace', fontSize: '13px', resize: 'none', outline: 'none', padding: '20px', lineHeight: '1.6', overflow: 'hidden' }}
+                      style={{ flex: 1, background: 'transparent', border: 'none', color: '#f8fafc', fontFamily: 'monospace', fontSize: '12px', resize: 'none', outline: 'none', padding: '15px', lineHeight: '1.6', width: '100%' }}
                     />
                   </div>
                 </div>
               )}
 
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'rgba(74, 222, 128, 0.02)' }}>
-                <div style={{ background: 'rgba(74, 222, 128, 0.1)', padding: '10px 20px', color: '#4ade80', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', borderBottom: '1px solid rgba(74, 222, 128, 0.2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><span style={{ fontSize: '14px' }}>+</span> SECURE PATCH</div>
-                  <span style={{ color: '#4ade80', opacity: 0.7, fontWeight: 'normal' }}>Live Editor Active</span>
+              <div style={{ flex: '1 1 300px', minWidth: '300px', display: 'flex', flexDirection: 'column', background: 'rgba(74, 222, 128, 0.02)' }}>
+                <div style={{ background: 'rgba(74, 222, 128, 0.1)', padding: '10px 15px', color: '#4ade80', fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px', borderBottom: '1px solid rgba(74, 222, 128, 0.2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><span style={{ fontSize: '12px' }}>+</span> SECURE PATCH</div>
+                  <span style={{ color: '#4ade80', opacity: 0.7, fontWeight: 'normal' }}>Live Editor</span>
                 </div>
-                <div style={{ display: 'flex', flex: 1 }}>
-                  {renderLineNumbers(secureCode)}
+                <div style={{ display: 'flex', flex: 1, minHeight: '300px' }}>
+                  {renderLineNumbers(currentSecureCode)}
                   <textarea 
-                    value={secureCode}
-                    onChange={(e) => setSecureCode(e.target.value)}
+                    value={currentSecureCode}
+                    onChange={(e) => setSecurePatches(prev => ({ ...prev, [activeFile.name]: e.target.value }))}
                     spellCheck="false"
-                    style={{ flex: 1, background: 'transparent', border: 'none', color: '#4ade80', fontFamily: 'monospace', fontSize: '13px', resize: 'none', outline: 'none', padding: '20px', lineHeight: '1.6', overflow: 'hidden' }}
+                    style={{ flex: 1, background: 'transparent', border: 'none', color: '#4ade80', fontFamily: 'monospace', fontSize: '12px', resize: 'none', outline: 'none', padding: '15px', lineHeight: '1.6', width: '100%' }}
                   />
                 </div>
               </div>
             </div>
-          </div>
-
-          {/* PATCH COMMIT SUMMARY */}
-          <div style={{ ...glassStyle, padding: '15px 20px' }}>
-            <span style={{ color: '#94a3b8', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '1px', display: 'block', marginBottom: '15px' }}>
-              Patch Commit Summary
-            </span>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {issues && issues.slice(0, 5).map((issue, index) => (
-                <div key={index} style={{ color: '#4ade80', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <CheckCircle2 size={16} /> 
-                  Fixed: {issue.issue || issue.name || 'Security Vulnerability'}
-                </div>
-              ))}
-              {issues && issues.length > 5 && (
-                <div style={{ color: '#94a3b8', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
-                  <CheckCircle2 size={16} color="#94a3b8" /> 
-                  + {issues.length - 5} minor structural optimizations applied
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* BOTTOM ACTION BAR */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px', marginTop: '5px', flexShrink: 0 }}>
-            <button 
-              disabled
-              style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', color: '#64748b', padding: '12px 25px', borderRadius: '30px', cursor: 'not-allowed', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', fontWeight: '600' }}
-            >
-              <Save size={16} /> Save Patch to Project <span style={{ fontSize: '10px', background: 'rgba(255,255,255,0.1)', padding: '2px 6px', borderRadius: '4px', marginLeft: '5px' }}>SOON</span>
-            </button>
           </div>
         </>
       )}
@@ -307,9 +321,10 @@ const SecureCode = () => {
         <div style={{
           position: 'fixed',
           bottom: '100px',
-          right: '30px',
-          width: '380px',
+          right: 'clamp(10px, 5vw, 30px)',
+          width: 'clamp(300px, 90vw, 380px)', // Responsive width for mobile screens
           height: '500px',
+          maxHeight: '70vh', // Prevent it from being taller than small screens
           background: 'rgba(15, 23, 42, 0.95)',
           backdropFilter: 'blur(16px)',
           border: '1px solid rgba(212, 175, 55, 0.3)',
@@ -324,7 +339,7 @@ const SecureCode = () => {
           <div style={{ padding: '15px 20px', borderBottom: '1px solid rgba(212, 175, 55, 0.2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#d4af37', background: 'rgba(212, 175, 55, 0.05)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <Bot size={20} />
-              <h3 style={{ margin: 0, fontSize: '15px', fontWeight: '600' }}>Security Copilot</h3>
+              <h3 style={{ margin: 0, fontSize: '14px', fontWeight: '600' }}>Security Copilot</h3>
             </div>
             <button onClick={() => setIsCopilotOpen(false)} style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer' }}>
               <X size={18} />
@@ -332,21 +347,21 @@ const SecureCode = () => {
           </div>
 
           {/* Chat Messages */}
-          <div ref={chatScrollRef} style={{ flex: 1, padding: '20px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '15px' }}>
+          <div ref={chatScrollRef} style={{ flex: 1, padding: '15px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '15px' }}>
             {chatMessages.map((msg, idx) => (
-              <div key={idx} style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start', maxWidth: '85%' }}>
+              <div key={idx} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start', maxWidth: '90%' }}>
                 
-                {msg.role === 'ai' && <div style={{ background: 'rgba(212, 175, 55, 0.2)', padding: '8px', borderRadius: '50%', color: '#d4af37', flexShrink: 0 }}><Bot size={16} /></div>}
+                {msg.role === 'ai' && <div style={{ background: 'rgba(212, 175, 55, 0.2)', padding: '6px', borderRadius: '50%', color: '#d4af37', flexShrink: 0 }}><Bot size={14} /></div>}
                 
                 <div style={{ 
                   background: msg.role === 'user' ? 'rgba(74, 222, 128, 0.15)' : 'rgba(255, 255, 255, 0.05)', 
                   border: msg.role === 'user' ? '1px solid rgba(74, 222, 128, 0.3)' : '1px solid rgba(255, 255, 255, 0.1)',
                   color: msg.role === 'user' ? '#4ade80' : '#cbd5e1', 
-                  padding: '12px 16px', 
+                  padding: '10px 14px', 
                   borderRadius: '12px',
                   borderTopRightRadius: msg.role === 'user' ? '4px' : '12px',
                   borderTopLeftRadius: msg.role === 'ai' ? '4px' : '12px',
-                  fontSize: '13px', lineHeight: '1.6'
+                  fontSize: '12px', lineHeight: '1.5'
                 }}>
                   {msg.content}
                 </div>
@@ -354,9 +369,9 @@ const SecureCode = () => {
             ))}
             
             {isChatTyping && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', alignSelf: 'flex-start' }}>
-                <div style={{ background: 'rgba(212, 175, 55, 0.2)', padding: '8px', borderRadius: '50%', color: '#d4af37' }}><Bot size={16} /></div>
-                <div style={{ background: 'rgba(255, 255, 255, 0.05)', padding: '12px 16px', borderRadius: '12px', color: '#cbd5e1', fontSize: '13px', display: 'flex', gap: '4px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', alignSelf: 'flex-start' }}>
+                <div style={{ background: 'rgba(212, 175, 55, 0.2)', padding: '6px', borderRadius: '50%', color: '#d4af37' }}><Bot size={14} /></div>
+                <div style={{ background: 'rgba(255, 255, 255, 0.05)', padding: '10px 14px', borderRadius: '12px', color: '#cbd5e1', fontSize: '12px', display: 'flex', gap: '4px' }}>
                   <span className="typing-dot" style={{ animation: 'blink 1.4s infinite both' }}>.</span>
                   <span className="typing-dot" style={{ animation: 'blink 1.4s infinite both', animationDelay: '0.2s' }}>.</span>
                   <span className="typing-dot" style={{ animation: 'blink 1.4s infinite both', animationDelay: '0.4s' }}>.</span>
@@ -366,32 +381,32 @@ const SecureCode = () => {
           </div>
 
           {/* Input Box */}
-          <form onSubmit={handleSendMessage} style={{ padding: '15px 20px', borderTop: '1px solid rgba(255, 255, 255, 0.08)', display: 'flex', gap: '10px' }}>
+          <form onSubmit={handleSendMessage} style={{ padding: '12px 15px', borderTop: '1px solid rgba(255, 255, 255, 0.08)', display: 'flex', gap: '8px' }}>
             <input 
               type="text" 
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
-              placeholder="Ask me about this patch..." 
-              style={{ flex: 1, background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '10px 15px', color: '#f8fafc', fontSize: '13px', outline: 'none' }}
+              placeholder="Ask about this file..." 
+              style={{ flex: 1, background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '10px', color: '#f8fafc', fontSize: '12px', outline: 'none' }}
             />
-            <button type="submit" disabled={!chatInput.trim() || isChatTyping} style={{ background: 'rgba(212, 175, 55, 0.2)', border: '1px solid rgba(212, 175, 55, 0.5)', color: '#d4af37', padding: '0 15px', borderRadius: '8px', cursor: chatInput.trim() && !isChatTyping ? 'pointer' : 'not-allowed', opacity: chatInput.trim() && !isChatTyping ? 1 : 0.5, transition: 'all 0.3s' }}>
-              <Send size={16} />
+            <button type="submit" disabled={!chatInput.trim() || isChatTyping} style={{ background: 'rgba(212, 175, 55, 0.2)', border: '1px solid rgba(212, 175, 55, 0.5)', color: '#d4af37', padding: '0 12px', borderRadius: '8px', cursor: chatInput.trim() && !isChatTyping ? 'pointer' : 'not-allowed', opacity: chatInput.trim() && !isChatTyping ? 1 : 0.5, transition: 'all 0.3s' }}>
+              <Send size={14} />
             </button>
           </form>
         </div>
       )}
 
-      {/* FLOATING ACTION BUTTON (The yellow robot icon) */}
+      {/* FLOATING ACTION BUTTON */}
       <button 
         onClick={() => setIsCopilotOpen(!isCopilotOpen)} 
         style={{
           position: 'fixed',
-          bottom: '30px',
-          right: '30px',
-          width: '56px',
-          height: '56px',
+          bottom: '25px',
+          right: 'clamp(15px, 5vw, 30px)',
+          width: '50px',
+          height: '50px',
           borderRadius: '50%',
-          background: '#fbbf24', // Yellow color from your screenshot
+          background: '#fbbf24', 
           border: 'none',
           cursor: 'pointer',
           display: 'flex',
@@ -403,7 +418,7 @@ const SecureCode = () => {
           transform: isCopilotOpen ? 'scale(0.9)' : 'scale(1)'
         }}
       >
-        {isCopilotOpen ? <X size={24} color="#1e293b" /> : <Bot size={28} color="#1e293b" />}
+        {isCopilotOpen ? <X size={22} color="#1e293b" /> : <Bot size={24} color="#1e293b" />}
       </button>
 
     </div>

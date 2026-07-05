@@ -1,3 +1,5 @@
+import os
+import httpx # <-- NEW: Required for verifying Google tokens
 from datetime import datetime, timezone
 from pydantic import BaseModel, EmailStr
 from database.schemas import UserLogin, OTPVerify
@@ -27,7 +29,7 @@ class FinalizeSignup(BaseModel):
     password: str
     confirm_password: str
 
-# --- NEW: PASSWORD RESET SCHEMAS ---
+# --- PASSWORD RESET SCHEMAS ---
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr
 
@@ -39,6 +41,10 @@ class ResetPasswordFinal(BaseModel):
     email: EmailStr
     new_password: str
     confirm_password: str
+
+# --- NEW: GOOGLE AUTH SCHEMA ---
+class GoogleAuthRequest(BaseModel):
+    access_token: str
 
 
 # ==========================================
@@ -145,7 +151,6 @@ def forgot_password(request: ForgotPasswordRequest, db: Session = Depends(get_db
     
     user = db.query(User).filter(User.email == request.email).first()
     
-    # TEMPORARY DEBUGGING: Throw an actual error instead of the decoy
     if not user:
         print("DEBUG: FAILED! User NOT FOUND in the database.")
         raise HTTPException(status_code=404, detail="DEBUG ERROR: This email is not in the users table. Check your spelling.")
@@ -253,6 +258,50 @@ def login(user: UserLogin, db: Session = Depends(get_db)):
         "sub": str(existing_user.id),
         "username": existing_user.username,
         "email": existing_user.email
+    })
+
+    return {
+        "access_token": access_token,
+        "token_type": "bearer"
+    }
+
+# --- NEW: GOOGLE OAUTH LOGIN ---
+@router.post("/google")
+async def google_login(request: GoogleAuthRequest, db: Session = Depends(get_db)):
+    # 1. Ask Google's API to verify the token and return the user's profile
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            "https://www.googleapis.com/oauth2/v3/userinfo",
+            headers={"Authorization": f"Bearer {request.access_token}"}
+        )
+
+    if response.status_code != 200:
+        raise HTTPException(status_code=401, detail="Invalid or expired Google Token")
+
+    user_info = response.json()
+    email = user_info.get("email")
+    name = user_info.get("name") or email.split("@")[0]
+
+    # 2. Check if user already exists
+    user = db.query(User).filter(User.email == email).first()
+    
+    if not user:
+        # Create a secure, unguessable dummy password for Google users
+        dummy_password = f"GOOG_{generate_otp()}{generate_otp()}"
+        user = User(
+            username=name,
+            email=email,
+            password_hash=hash_password(dummy_password)
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+
+    # 3. Generate your application's JWT Token
+    access_token = create_access_token({
+        "sub": str(user.id),
+        "username": user.username,
+        "email": user.email
     })
 
     return {
